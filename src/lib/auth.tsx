@@ -18,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const getRedirectUrl = () => {
   const url = new URL(window.location.href);
+  // Normalize 127.0.0.1 → localhost for local Supabase
   if (url.hostname === '127.0.0.1') {
     url.hostname = 'localhost';
   }
