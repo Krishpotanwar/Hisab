@@ -1,0 +1,26 @@
+{
+  "name": "HisaabKitaab",
+  "short_name": "Hisaab",
+  "description": "Split expenses with friends and family. Track balances and settle up fast.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FDFBF7",
+  "theme_color": "#1AA688",
+  "categories": ["finance", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

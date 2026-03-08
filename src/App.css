@@ -1,0 +1,7 @@
+/* App.css — intentionally minimal. All styles are in index.css via Tailwind.
+   The legacy Vite scaffold rules below have been removed to avoid conflicting
+   with safe-area insets and Tailwind container utilities. */
+#root {
+  /* Allow full-screen layout; containers are handled per-page */
+  height: 100%;
+}

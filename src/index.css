@@ -1,0 +1,237 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* HisaabKitaab Design System - Premium Expense Splitting App
+   Inspired by modern fintech apps with warm, trustworthy colors */
+
+@layer base {
+  :root {
+    /* Core Background - Warm off-white */
+    --background: 40 33% 98%;
+    --foreground: 220 30% 15%;
+
+    /* Cards - Pure white with subtle warmth */
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 15%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 15%;
+
+    /* Primary - Teal/Mint - Trust & Money */
+    --primary: 168 76% 36%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Soft gray-blue */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 30% 25%;
+
+    /* Muted - For subtle backgrounds */
+    --muted: 40 20% 96%;
+    --muted-foreground: 220 10% 50%;
+
+    /* Accent - Warm coral for highlights */
+    --accent: 15 90% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Success - Money green */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning - Amber */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 10%;
+
+    /* Destructive - Soft red */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* UI Elements */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 168 76% 36%;
+
+    --radius: 1rem;
+
+    /* Category Colors */
+    --category-food: 0 84% 60%;
+    --category-transport: 217 91% 60%;
+    --category-entertainment: 271 81% 56%;
+    --category-shopping: 38 92% 50%;
+    --category-utilities: 142 70% 45%;
+    --category-healthcare: 328 85% 57%;
+    --category-other: 220 10% 50%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(168 76% 36%) 0%, hsl(173 70% 40%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(15 90% 60%) 0%, hsl(25 95% 55%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 30% 99%) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(168 76% 36% / 0.05) 0%, transparent 50%);
+
+    /* Safe area insets (iOS) */
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px hsl(220 30% 15% / 0.04);
+    --shadow-md: 0 4px 12px hsl(220 30% 15% / 0.06);
+    --shadow-lg: 0 12px 40px hsl(220 30% 15% / 0.08);
+    --shadow-card: 0 2px 8px hsl(220 30% 15% / 0.04), 0 8px 32px hsl(220 30% 15% / 0.06);
+    --shadow-float: 0 20px 60px hsl(220 30% 15% / 0.12);
+
+    /* Sidebar - Keep defaults */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 168 76% 36%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 168 60% 95%;
+    --sidebar-accent-foreground: 168 76% 36%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 168 76% 36%;
+  }
+
+  .dark {
+    --background: 220 25% 8%;
+    --foreground: 40 20% 96%;
+
+    --card: 220 25% 11%;
+    --card-foreground: 40 20% 96%;
+
+    --popover: 220 25% 11%;
+    --popover-foreground: 40 20% 96%;
+
+    --primary: 168 76% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 40 20% 90%;
+
+    --muted: 220 20% 15%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 15 90% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success and Warning - slightly brighter for dark backgrounds */
+    --success: 142 70% 50%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 10%;
+
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 168 76% 45%;
+
+    /* Category Colors - brighter for dark backgrounds */
+    --category-food: 0 84% 65%;
+    --category-transport: 217 91% 65%;
+    --category-entertainment: 271 81% 65%;
+    --category-shopping: 38 92% 58%;
+    --category-utilities: 142 70% 52%;
+    --category-healthcare: 328 85% 65%;
+    --category-other: 220 10% 62%;
+
+    --sidebar-background: 220 25% 10%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 168 76% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 15%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 220 20% 18%;
+    --sidebar-ring: 168 76% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    min-height: 100dvh;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-white/20;
+    box-shadow: var(--shadow-card);
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .balance-positive {
+    @apply text-success;
+  }
+
+  .balance-negative {
+    @apply text-destructive;
+  }
+
+  .category-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .float-animation {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--primary) / 0.1) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer,
+  .float-animation {
+    animation: none;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
