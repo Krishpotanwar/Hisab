@@ -306,7 +306,7 @@ export default function GroupDetail() {
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        className="fixed bottom-[calc(1.5rem+var(--safe-area-bottom))] right-[calc(1.5rem+var(--safe-area-right))]"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-[calc(1.5rem+var(--safe-area-right))]"
       >
         <Button size="lg" className="rounded-full w-14 h-14 shadow-float" aria-label="Add expense" onClick={() => setShowAddExpense(true)}>
           <Plus className="w-6 h-6" />

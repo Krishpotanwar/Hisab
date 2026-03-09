@@ -103,7 +103,7 @@ export default function Dashboard() {
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="fixed bottom-[calc(1.5rem+var(--safe-area-bottom))] right-[calc(1.5rem+var(--safe-area-right))]"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-[calc(1.5rem+var(--safe-area-right))]"
         >
           <Button
             size="lg"
