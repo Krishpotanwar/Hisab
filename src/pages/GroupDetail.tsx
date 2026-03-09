@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { GroupDetailSkeleton } from '@/components/GroupDetailSkeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type GroupRecord = Tables<'groups'>;
 interface SettlementSuggestion {

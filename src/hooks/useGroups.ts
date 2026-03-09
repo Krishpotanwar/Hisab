@@ -166,6 +166,10 @@ export function useGroups() {
       if (pendingError.code === '23505') {
         return { error: new Error('This person is already invited'), wasPending: true };
       }
+      // Table doesn't exist yet (migration not run)
+      if (pendingError.code === '42P01' || (pendingError.message || '').includes('does not exist')) {
+        return { error: new Error('Database setup incomplete. Please run the pending migration in your Supabase SQL editor.') };
+      }
       return { error: pendingError as unknown as Error };
     }
 

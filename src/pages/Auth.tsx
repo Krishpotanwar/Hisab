@@ -9,6 +9,23 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
+function friendlyAuthError(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes('rate') || m.includes('too many') || m.includes('after') || m.includes('seconds'))
+    return 'Too many attempts. Please wait a minute and try again.';
+  if (m.includes('invalid login') || m.includes('invalid credentials') || m.includes('email not confirmed'))
+    return 'Incorrect email or password.';
+  if (m.includes('user already registered') || m.includes('already been registered'))
+    return 'An account with this email already exists. Try signing in.';
+  if (m.includes('password') && m.includes('weak'))
+    return 'Password is too weak. Use at least 8 characters.';
+  if (m.includes('email') && (m.includes('invalid') || m.includes('format')))
+    return 'Please enter a valid email address.';
+  if (m.includes('network') || m.includes('fetch'))
+    return 'Network error. Check your connection and try again.';
+  return msg; // fallback to original
+}
+
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -47,24 +64,28 @@ export default function Auth() {
     setLoading(true);
     if (isLogin) {
       const { error } = await signIn(email, password);
-      if (error) toast.error(error.message);
+      if (error) toast.error(friendlyAuthError(error.message));
       else navigate('/', { replace: true });
     } else {
       const { error } = await signUp(email, password, fullName.trim(), phone.trim() || undefined);
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyAuthError(error.message));
       } else {
-        // Check if they had pending group invites (DB trigger auto-claimed them)
-        const { data: pending } = await supabase
-          .from('pending_members')
-          .select('group_id')
-          .eq('invited_email', email.trim().toLowerCase());
-        const pendingCount = pending?.length ?? 0;
         toast.success('Account created! Welcome to HisaabKitaab 🎉');
-        if (pendingCount > 0) {
-          setTimeout(() => {
-            toast.info(`You've been added to ${pendingCount} group${pendingCount > 1 ? 's' : ''} already!`);
-          }, 1000);
+        // Check if they had pending group invites (DB trigger auto-claimed them)
+        try {
+          const { data: pending } = await supabase
+            .from('pending_members')
+            .select('group_id')
+            .eq('invited_email', email.trim().toLowerCase());
+          const pendingCount = pending?.length ?? 0;
+          if (pendingCount > 0) {
+            setTimeout(() => {
+              toast.info(`You've been added to ${pendingCount} group${pendingCount > 1 ? 's' : ''} already!`);
+            }, 1000);
+          }
+        } catch {
+          // pending_members table may not be set up yet — ignore
         }
         navigate('/', { replace: true });
       }
