@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, LogOut, Wallet, Users, BarChart2 } from 'lucide-react';
+import { Plus, Wallet, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { useGroups } from '@/hooks/useGroups';
 import { GroupCard } from '@/components/GroupCard';
 import { CreateGroupDialog } from '@/components/CreateGroupDialog';
-import { NotificationBell } from '@/components/NotificationBell';
+import { BottomNav } from '@/components/BottomNav';
 import { useNavigate } from 'react-router-dom';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DashboardSkeleton } from '@/components/DashboardSkeleton';
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { groups, loading, createGroup } = useGroups();
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showBell, setShowBell] = useState(false);
   const navigate = useNavigate();
   const displayName =
     user?.user_metadata?.full_name?.split(' ')[0] ||
@@ -36,16 +37,7 @@ export default function Dashboard() {
               <p className="text-xs text-muted-foreground">Welcome back, {displayName}.</p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/analytics')} aria-label="Analytics">
-              <BarChart2 className="w-5 h-5" />
-            </Button>
-            <NotificationBell />
-            <ThemeToggle />
-            <Button variant="ghost" size="icon" onClick={signOut}>
-              <LogOut className="w-5 h-5" />
-            </Button>
-          </div>
+          <ThemeToggle />
         </div>
       </header>
 
@@ -129,6 +121,8 @@ export default function Dashboard() {
         onClose={() => setShowCreateGroup(false)}
         createGroup={createGroup}
       />
+
+      <BottomNav />
     </div>
   );
 }

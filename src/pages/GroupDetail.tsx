@@ -13,7 +13,7 @@ import { ExpenseCard } from '@/components/ExpenseCard';
 import { MemberAvatar } from '@/components/MemberAvatar';
 import { AddExpenseDialog } from '@/components/AddExpenseDialog';
 import { AddMemberDialog } from '@/components/AddMemberDialog';
-import { NotificationBell } from '@/components/NotificationBell';
+import { BottomNav } from '@/components/BottomNav';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -171,7 +171,6 @@ export default function GroupDetail() {
             </div>
           </div>
           <ThemeToggle />
-          <NotificationBell />
         </div>
       </header>
 
@@ -335,6 +334,8 @@ export default function GroupDetail() {
           }}
         />
       )}
+
+      <BottomNav />
     </div>
   );
 }

@@ -7,7 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { NotificationBell } from '@/components/NotificationBell';
+import { BottomNav } from '@/components/BottomNav';
 
 const PIE_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#f97316'];
 
@@ -48,11 +48,10 @@ export default function Analytics() {
               <p className="text-xs text-muted-foreground">Your spending overview</p>
             </div>
           </div>
-          <NotificationBell />
         </div>
       </header>
 
-      <main className="container max-w-2xl mx-auto px-4 py-6 pb-12 space-y-6">
+      <main className="container max-w-2xl mx-auto px-4 py-6 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] space-y-6">
         {/* Summary cards */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-3 gap-3">
           {[
@@ -188,6 +187,7 @@ export default function Analytics() {
           )}
         </motion.div>
       </main>
+      <BottomNav />
     </div>
   );
 }
