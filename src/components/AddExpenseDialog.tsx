@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getCategoryInfo, ExpenseSplit } from '@/hooks/useExpenses';
-import { useGroups, GroupMember } from '@/hooks/useGroups';
+import { useGroups, GroupMember, PendingMember } from '@/hooks/useGroups';
 import { useAuth } from '@/lib/auth';
 import { MemberAvatar } from './MemberAvatar';
 import { ReceiptScanButton } from './ReceiptScanButton';
@@ -33,13 +33,15 @@ const CATEGORIES = ['food', 'transport', 'entertainment', 'shopping', 'utilities
 
 export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddExpenseDialogProps) {
   const { user } = useAuth();
-  const { getGroupMembers } = useGroups();
+  const { getGroupMembers, getPendingMembers } = useGroups();
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('other');
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
+  const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
   const [paidBy, setPaidBy] = useState<string>(user?.id ?? '');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [membersLoading, setMembersLoading] = useState(false);
@@ -48,14 +50,19 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
   useEffect(() => {
     if (open && groupId) {
       setMembersLoading(true);
-      getGroupMembers(groupId).then(m => {
+      Promise.all([
+        getGroupMembers(groupId),
+        getPendingMembers(groupId),
+      ]).then(([m, pending]) => {
         setMembers(m);
-        setSelectedMembers(m.map(m => m.user_id));
+        setSelectedMembers(m.map(mem => mem.user_id));
         setPaidBy(user?.id ?? m[0]?.user_id ?? '');
+        setPendingMembers(pending);
+        setSelectedPendingIds(pending.map(p => p.id));
         setMembersLoading(false);
       });
     }
-  }, [open, groupId, getGroupMembers, user]);
+  }, [open, groupId, getGroupMembers, getPendingMembers, user]);
 
   const toggleMember = (userId: string) => {
     setSelectedMembers(prev =>
@@ -65,20 +72,42 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
     );
   };
 
+  const togglePending = (pendingId: string) => {
+    setSelectedPendingIds(prev =>
+      prev.includes(pendingId)
+        ? prev.filter(id => id !== pendingId)
+        : [...prev, pendingId]
+    );
+  };
+
+  const totalSplitCount = selectedMembers.length + selectedPendingIds.length;
+
+  const perPerson = amount && totalSplitCount > 0
+    ? Math.floor((parseFloat(amount) / totalSplitCount) * 100) / 100
+    : 0;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim() || !amount || selectedMembers.length === 0) return;
 
     const amountNum = parseFloat(amount);
 
-    // Fix #7: Proper money math — round to 2 decimal places, assign remainder to first person
-    const baseSplit = Math.floor((amountNum / selectedMembers.length) * 100) / 100;
-    const remainder = Math.round((amountNum - baseSplit * selectedMembers.length) * 100) / 100;
+    // Round to 2 decimal places, assign remainder to first confirmed member
+    const baseSplit = Math.floor((amountNum / totalSplitCount) * 100) / 100;
+    const remainder = Math.round((amountNum - baseSplit * totalSplitCount) * 100) / 100;
 
     const splits = selectedMembers.map((userId, index) => ({
       user_id: userId,
       amount: index === 0 ? baseSplit + remainder : baseSplit,
     }));
+
+    // Build notes for pending members
+    const selectedPending = pendingMembers.filter(p => selectedPendingIds.includes(p.id));
+    const pendingNotes = selectedPending.length > 0
+      ? selectedPending
+          .map(p => `Invited: ${p.invited_name || p.invited_email} owes ₹${baseSplit.toFixed(2)}`)
+          .join('; ')
+      : undefined;
 
     setLoading(true);
     const { error } = await createExpense(
@@ -86,9 +115,9 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
       amountNum,
       category,
       splits,
-      date,         // Fix #13: Pass the selected date
-      undefined,
-      paidBy,       // Fix #12: Pass who paid
+      date,
+      pendingNotes,
+      paidBy,
     );
     setLoading(false);
 
@@ -103,10 +132,6 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
       onClose();
     }
   };
-
-  const perPerson = amount && selectedMembers.length > 0
-    ? Math.floor((parseFloat(amount) / selectedMembers.length) * 100) / 100
-    : 0;
 
   const modal = (
     <AnimatePresence>
@@ -176,7 +201,7 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
                     />
                   </div>
 
-                  {/* Date picker — Fix #13 */}
+                  {/* Date picker */}
                   <div>
                     <Label htmlFor="expense-date" className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
@@ -218,7 +243,7 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
                     </div>
                   </div>
 
-                  {/* Paid By selector — Fix #12 */}
+                  {/* Paid By selector */}
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Paid by</Label>
                     <div className="flex gap-2 flex-wrap" aria-busy={membersLoading}>
@@ -280,8 +305,46 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
                             )}
                           </button>
                         ))}
+
+                      {/* Pending / Invited members */}
+                      {!membersLoading && pendingMembers.length > 0 && (
+                        <>
+                          <p className="text-xs text-muted-foreground pt-1 pb-0.5 font-medium">Invited (not yet joined)</p>
+                          {pendingMembers.map((pending) => {
+                            const isSelected = selectedPendingIds.includes(pending.id);
+                            return (
+                              <button
+                                key={pending.id}
+                                type="button"
+                                onClick={() => togglePending(pending.id)}
+                                className={cn(
+                                  "w-full flex items-center gap-3 p-3 rounded-xl transition-all opacity-75",
+                                  isSelected
+                                    ? 'bg-amber-500/10 ring-1 ring-amber-500/30'
+                                    : 'bg-muted hover:bg-muted/80'
+                                )}
+                              >
+                                <div className="w-8 h-8 rounded-full bg-muted border-2 border-dashed border-amber-400/60 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-sm">?</span>
+                                </div>
+                                <span className="flex-1 text-left font-medium text-sm">
+                                  {pending.invited_name || pending.invited_email}
+                                </span>
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 mr-1">
+                                  Invited
+                                </span>
+                                {isSelected && (
+                                  <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                                    <Check className="w-3 h-3 text-white" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </>
+                      )}
                     </div>
-                    {amount && selectedMembers.length > 0 && (
+                    {amount && totalSplitCount > 0 && (
                       <p className="mt-2 text-sm text-muted-foreground text-center">
                         ₹{perPerson.toFixed(2)} per person
                       </p>

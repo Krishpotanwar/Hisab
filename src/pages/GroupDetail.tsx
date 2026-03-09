@@ -13,12 +13,14 @@ import { ExpenseCard } from '@/components/ExpenseCard';
 import { MemberAvatar } from '@/components/MemberAvatar';
 import { AddExpenseDialog } from '@/components/AddExpenseDialog';
 import { AddMemberDialog } from '@/components/AddMemberDialog';
+import { GroupChat } from '@/components/GroupChat';
 import { BottomNav } from '@/components/BottomNav';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { GroupDetailSkeleton } from '@/components/GroupDetailSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 type GroupRecord = Tables<'groups'>;
 interface SettlementSuggestion {
@@ -46,6 +48,7 @@ export default function GroupDetail() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [settlingUserId, setSettlingUserId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'expenses' | 'chat'>('expenses');
 
   const refreshMembers = useCallback(async (groupId: string) => {
     setMembersLoading(true);
@@ -182,137 +185,172 @@ export default function GroupDetail() {
           <BalanceCard balance={myBalance} />
         )}
 
-        {settlementSuggestions.length > 0 && (
-          <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-semibold">Settle up instantly</h3>
-              <span className="text-xs text-muted-foreground">UPI / cards via Razorpay</span>
-            </div>
-            <div className="space-y-2">
-              {settlementSuggestions.map((suggestion) => (
-                <div
-                  key={suggestion.toUserId}
-                  className="flex items-center justify-between rounded-xl border border-border/60 p-3"
-                >
-                  <div className="text-sm">
-                    <p className="font-medium">Pay {suggestion.fullName}</p>
-                    <p className="text-muted-foreground">Suggested settlement</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleSettleUp(suggestion.toUserId, suggestion.amount)}
-                    disabled={processingPayment || settlingUserId === suggestion.toUserId}
-                  >
-                    <IndianRupee className="w-3.5 h-3.5 mr-1" />
-                    {suggestion.amount.toFixed(2)}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              <h3 className="font-semibold">{membersLoading ? 'Members' : `Members (${members.length})`}</h3>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setShowAddMember(true)}>
-              <UserPlus className="w-3 h-3 mr-1" />
-              Add
-            </Button>
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-2" aria-busy={membersLoading}>
-            {membersLoading
-              ? Array.from({ length: 5 }).map((_, index) => (
-                <div key={`member-loading-${index}`} className="flex flex-col items-center gap-1 min-w-[60px]">
-                  <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
-                  <div className="h-3 w-12 bg-muted animate-pulse rounded" />
-                </div>
-              ))
-              : members.map((member) => (
-                <div key={member.user_id} className="flex flex-col items-center gap-1 min-w-[60px]">
-                  <MemberAvatar name={member.full_name} size="lg" />
-                  <span className="text-xs text-muted-foreground truncate max-w-[60px]">
-                    {member.full_name.split(' ')[0]}
-                  </span>
-                </div>
-              ))}
-            {pendingMembers.map((p) => (
-              <div key={p.id} className="flex flex-col items-center gap-1 min-w-[60px] opacity-60">
-                <div className="w-12 h-12 rounded-full bg-muted border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-                  <span className="text-lg">?</span>
-                </div>
-                <span className="text-[10px] text-amber-500 truncate max-w-[60px]">Invited</span>
-              </div>
-            ))}
-          </div>
+        {/* Tab switcher */}
+        <div className="flex bg-muted rounded-xl p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('expenses')}
+            className={cn(
+              'flex-1 py-2 rounded-lg text-sm font-medium transition-all',
+              activeTab === 'expenses' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
+            )}
+          >
+            Expenses
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('chat')}
+            className={cn(
+              'flex-1 py-2 rounded-lg text-sm font-medium transition-all',
+              activeTab === 'chat' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
+            )}
+          >
+            Chat
+          </button>
         </div>
 
-        {balancesLoading ? (
-          <div>
-            <Skeleton className="h-4 w-24 mb-3" />
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <Skeleton key={`balance-loading-${index}`} className="h-12 w-full rounded-xl" />
-              ))}
-            </div>
-          </div>
-        ) : balances.length > 0 ? (
-          <div>
-            <h3 className="font-semibold mb-3">Balances</h3>
-            <div className="space-y-2">
-              {balances.map((balance) => (
-                <div
-                  key={balance.user_id}
-                  className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <MemberAvatar name={balance.full_name} size="sm" />
-                    <span className="font-medium">{balance.full_name}</span>
-                  </div>
-                  <span className={balance.balance >= 0 ? 'text-success font-semibold' : 'text-destructive font-semibold'}>
-                    {balance.balance >= 0 ? '+' : ''}₹{Math.abs(balance.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              ))}
-            </div>
+        {activeTab === 'chat' ? (
+          <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+            <GroupChat groupId={id || ''} />
           </div>
         ) : (
-          <div className="text-sm text-muted-foreground">Balances will appear once expenses are added.</div>
-        )}
+          <>
+            {settlementSuggestions.length > 0 && (
+              <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-semibold">Settle up instantly</h3>
+                  <span className="text-xs text-muted-foreground">UPI / cards via Razorpay</span>
+                </div>
+                <div className="space-y-2">
+                  {settlementSuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.toUserId}
+                      className="flex items-center justify-between rounded-xl border border-border/60 p-3"
+                    >
+                      <div className="text-sm">
+                        <p className="font-medium">Pay {suggestion.fullName}</p>
+                        <p className="text-muted-foreground">Suggested settlement</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSettleUp(suggestion.toUserId, suggestion.amount)}
+                        disabled={processingPayment || settlingUserId === suggestion.toUserId}
+                      >
+                        <IndianRupee className="w-3.5 h-3.5 mr-1" />
+                        {suggestion.amount.toFixed(2)}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        <div>
-          <h3 className="font-semibold mb-3">Recent Expenses</h3>
-          {loading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={`expense-loading-${index}`} className="h-16 w-full rounded-xl" />
-              ))}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <h3 className="font-semibold">{membersLoading ? 'Members' : `Members (${members.length})`}</h3>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setShowAddMember(true)}>
+                  <UserPlus className="w-3 h-3 mr-1" />
+                  Add
+                </Button>
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-2" aria-busy={membersLoading}>
+                {membersLoading
+                  ? Array.from({ length: 5 }).map((_, index) => (
+                    <div key={`member-loading-${index}`} className="flex flex-col items-center gap-1 min-w-[60px]">
+                      <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                      <div className="h-3 w-12 bg-muted animate-pulse rounded" />
+                    </div>
+                  ))
+                  : members.map((member) => (
+                    <div key={member.user_id} className="flex flex-col items-center gap-1 min-w-[60px]">
+                      <MemberAvatar name={member.full_name} size="lg" />
+                      <span className="text-xs text-muted-foreground truncate max-w-[60px]">
+                        {member.full_name.split(' ')[0]}
+                      </span>
+                    </div>
+                  ))}
+                {pendingMembers.map((p) => (
+                  <div key={p.id} className="flex flex-col items-center gap-1 min-w-[60px] opacity-60">
+                    <div className="w-12 h-12 rounded-full bg-muted border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                      <span className="text-lg">?</span>
+                    </div>
+                    <span className="text-[10px] text-amber-500 truncate max-w-[60px]">Invited</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          ) : expenses.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No expenses yet. Add your first one!</div>
-          ) : (
-            <div className="space-y-2">
-              {expenses.map((expense, index) => (
-                <ExpenseCard key={expense.id} expense={expense} index={index} />
-              ))}
+
+            {balancesLoading ? (
+              <div>
+                <Skeleton className="h-4 w-24 mb-3" />
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <Skeleton key={`balance-loading-${index}`} className="h-12 w-full rounded-xl" />
+                  ))}
+                </div>
+              </div>
+            ) : balances.length > 0 ? (
+              <div>
+                <h3 className="font-semibold mb-3">Balances</h3>
+                <div className="space-y-2">
+                  {balances.map((balance) => (
+                    <div
+                      key={balance.user_id}
+                      className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <MemberAvatar name={balance.full_name} size="sm" />
+                        <span className="font-medium">{balance.full_name}</span>
+                      </div>
+                      <span className={balance.balance >= 0 ? 'text-success font-semibold' : 'text-destructive font-semibold'}>
+                        {balance.balance >= 0 ? '+' : ''}₹{Math.abs(balance.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">Balances will appear once expenses are added.</div>
+            )}
+
+            <div>
+              <h3 className="font-semibold mb-3">Recent Expenses</h3>
+              {loading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={`expense-loading-${index}`} className="h-16 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : expenses.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No expenses yet. Add your first one!</div>
+              ) : (
+                <div className="space-y-2">
+                  {expenses.map((expense, index) => (
+                    <ExpenseCard key={expense.id} expense={expense} index={index} />
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </main>
 
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-[calc(1.5rem+var(--safe-area-right))]"
-      >
-        <Button size="lg" className="rounded-full w-14 h-14 shadow-float" aria-label="Add expense" onClick={() => setShowAddExpense(true)}>
-          <Plus className="w-6 h-6" />
-        </Button>
-      </motion.div>
+      {/* FAB only shows on expenses tab */}
+      {activeTab === 'expenses' && (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-[calc(1.5rem+var(--safe-area-right))]"
+        >
+          <Button size="lg" className="rounded-full w-14 h-14 shadow-float" aria-label="Add expense" onClick={() => setShowAddExpense(true)}>
+            <Plus className="w-6 h-6" />
+          </Button>
+        </motion.div>
+      )}
 
       <AddExpenseDialog
         open={showAddExpense}
