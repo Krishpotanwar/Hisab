@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, LogOut, Wallet, Users } from 'lucide-react';
+import { Plus, LogOut, Wallet, Users, BarChart2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { useGroups } from '@/hooks/useGroups';
 import { GroupCard } from '@/components/GroupCard';
 import { CreateGroupDialog } from '@/components/CreateGroupDialog';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useNavigate } from 'react-router-dom';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DashboardSkeleton } from '@/components/DashboardSkeleton';
@@ -36,6 +37,10 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/analytics')} aria-label="Analytics">
+              <BarChart2 className="w-5 h-5" />
+            </Button>
+            <NotificationBell />
             <ThemeToggle />
             <Button variant="ghost" size="icon" onClick={signOut}>
               <LogOut className="w-5 h-5" />

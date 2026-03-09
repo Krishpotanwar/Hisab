@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -53,7 +54,18 @@ export default function Auth() {
       if (error) {
         toast.error(error.message);
       } else {
+        // Check if they had pending group invites (DB trigger auto-claimed them)
+        const { data: pending } = await supabase
+          .from('pending_members')
+          .select('group_id')
+          .eq('invited_email', email.trim().toLowerCase());
+        const pendingCount = pending?.length ?? 0;
         toast.success('Account created! Welcome to HisaabKitaab 🎉');
+        if (pendingCount > 0) {
+          setTimeout(() => {
+            toast.info(`You've been added to ${pendingCount} group${pendingCount > 1 ? 's' : ''} already!`);
+          }, 1000);
+        }
         navigate('/', { replace: true });
       }
     }

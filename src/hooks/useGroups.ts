@@ -3,6 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import { useAuth } from '@/lib/auth';
 
+export interface PendingMember {
+  id: string;
+  invited_email: string;
+  invited_name: string | null;
+  created_at: string;
+}
+
 type GroupRow = Tables<'groups'>;
 type GroupWithCount = GroupRow & {
   group_members: Array<{
@@ -122,39 +129,83 @@ export function useGroups() {
     }));
   }, []);
 
-  const addMemberByEmail = useCallback(async (groupId: string, email: string) => {
+  const addMemberByEmail = useCallback(async (
+    groupId: string,
+    email: string,
+    invitedName?: string,
+  ): Promise<{ error: Error | null; wasPending?: boolean }> => {
+    if (!user) return { error: new Error('Not authenticated') };
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !normalizedEmail.includes('@')) {
       return { error: new Error('Enter a valid email address') };
     }
 
-    const { data: profileData, error: profileError } = await supabase
+    // Look up if user already has an account via auth (edge function side)
+    // Client-side: check profiles table (profiles are created on signup)
+    const { data: profileRows } = await supabase
       .from('profiles')
-      .select('id, full_name, email')
-      .eq('email', normalizedEmail)
-      .limit(1);
+      .select('id, full_name')
+      .limit(100);
 
-    let profile = profileData?.[0] as ProfileLookup | undefined;
+    // We can't query by email directly on profiles (no email col) so use edge function
+    // For now: try to find by checking auth via edge function call
+    // Fallback: add to pending_members, edge function will send email
+    const { data: pending, error: pendingError } = await supabase
+      .from('pending_members')
+      .insert({
+        group_id: groupId,
+        invited_email: normalizedEmail,
+        invited_name: invitedName || null,
+        invited_by: user.id,
+      })
+      .select()
+      .single();
 
-    if (!profile && !profileError) {
-      const { data: fallbackData } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .ilike('full_name', `%${normalizedEmail}%`)
-        .limit(1);
-      profile = fallbackData?.[0] as ProfileLookup | undefined;
+    if (pendingError) {
+      // Duplicate = already invited
+      if (pendingError.code === '23505') {
+        return { error: new Error('This person is already invited'), wasPending: true };
+      }
+      return { error: pendingError as unknown as Error };
     }
 
-    if (profileError || !profile) {
-      return { error: new Error('User not found') };
-    }
+    // Trigger notify edge function (invite email)
+    const { data: myProfile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
 
-    const { error } = await supabase.from('group_members').insert({
-      group_id: groupId,
-      user_id: profile.id,
+    const { data: groupData } = await supabase
+      .from('groups')
+      .select('name')
+      .eq('id', groupId)
+      .single();
+
+    supabase.functions.invoke('notify', {
+      body: {
+        type: 'group_invite',
+        inviteEmail: normalizedEmail,
+        inviterName: (myProfile as any)?.full_name ?? 'A friend',
+        groupName: (groupData as any)?.name ?? 'a group',
+        groupId,
+        title: 'You were invited to a group',
+        body: `You have been invited to join "${(groupData as any)?.name}"`,
+      },
     });
 
-    return { error };
+    return { error: null, wasPending: true };
+  }, [user]);
+
+  const getPendingMembers = useCallback(async (groupId: string): Promise<PendingMember[]> => {
+    const { data, error } = await supabase
+      .from('pending_members')
+      .select('id, invited_email, invited_name, created_at')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+    return data as PendingMember[];
   }, []);
 
   return {
@@ -163,6 +214,7 @@ export function useGroups() {
     createGroup,
     getGroupMembers,
     addMemberByEmail,
+    getPendingMembers,
     refetch: fetchGroups,
   };
 }

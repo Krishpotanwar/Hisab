@@ -129,6 +129,38 @@ export function useExpenses(groupId: string | null) {
     if (splitsError) return { error: splitsError };
 
     await fetchExpenses();
+
+    // Fire notifications to all group members (except payer)
+    supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId)
+      .then(({ data: members }) => {
+        const recipients = (members ?? [])
+          .map((m: any) => m.user_id)
+          .filter((id: string) => id !== (paidBy || user.id));
+        if (recipients.length === 0) return;
+
+        supabase
+          .from('groups')
+          .select('name')
+          .eq('id', groupId)
+          .single()
+          .then(({ data: grp }) => {
+            supabase.functions.invoke('notify', {
+              body: {
+                type: 'expense_added',
+                recipientUserIds: recipients,
+                title: `New expense: ${description}`,
+                body: `₹${amount} was added by ${user.user_metadata?.full_name ?? 'someone'} in "${(grp as any)?.name ?? 'your group'}"`,
+                groupId,
+                groupName: (grp as any)?.name,
+                expenseId: expenseData.id,
+              },
+            });
+          });
+      });
+
     return { data: expenseData, error: null };
   };
 
@@ -220,6 +252,28 @@ export function useExpenses(groupId: string | null) {
       amount,
       notes: notes || null,
     });
+
+    if (!error) {
+      // Notify both parties
+      supabase
+        .from('groups')
+        .select('name')
+        .eq('id', groupId)
+        .single()
+        .then(({ data: grp }) => {
+          const myName = user.user_metadata?.full_name ?? 'Someone';
+          supabase.functions.invoke('notify', {
+            body: {
+              type: 'settlement',
+              recipientUserIds: [toUser],
+              title: `${myName} settled up!`,
+              body: `${myName} paid you ₹${amount} in "${(grp as any)?.name ?? 'your group'}"`,
+              groupId,
+              groupName: (grp as any)?.name,
+            },
+          });
+        });
+    }
 
     return { error };
   };

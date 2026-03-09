@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Users, IndianRupee } from 'lucide-react';
+import { ArrowLeft, Plus, Users, IndianRupee, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useExpenses, Balance } from '@/hooks/useExpenses';
-import { useGroups, GroupMember } from '@/hooks/useGroups';
+import { useGroups, GroupMember, PendingMember } from '@/hooks/useGroups';
 import { usePayments } from '@/hooks/usePayments';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
@@ -13,10 +12,11 @@ import { BalanceCard } from '@/components/BalanceCard';
 import { ExpenseCard } from '@/components/ExpenseCard';
 import { MemberAvatar } from '@/components/MemberAvatar';
 import { AddExpenseDialog } from '@/components/AddExpenseDialog';
+import { AddMemberDialog } from '@/components/AddMemberDialog';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Skeleton } from '@/components/ui/skeleton';
 import { GroupDetailSkeleton } from '@/components/GroupDetailSkeleton';
 
 type GroupRecord = Tables<'groups'>;
@@ -31,27 +31,29 @@ export default function GroupDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { expenses, loading, getBalances } = useExpenses(id || null);
-  const { getGroupMembers, addMemberByEmail } = useGroups();
+  const { getGroupMembers, getPendingMembers } = useGroups();
   const { processingPayment, startSettlementPayment } = usePayments();
 
   const [group, setGroup] = useState<GroupRecord | null>(null);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [groupLoading, setGroupLoading] = useState(true);
   const [members, setMembers] = useState<GroupMember[]>([]);
+  const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
   const [balancesLoading, setBalancesLoading] = useState(true);
   const [showAddExpense, setShowAddExpense] = useState(false);
-  const [addingMember, setAddingMember] = useState(false);
-  const [memberQuery, setMemberQuery] = useState('');
+  const [showAddMember, setShowAddMember] = useState(false);
   const [settlingUserId, setSettlingUserId] = useState<string | null>(null);
 
   const refreshMembers = useCallback(async (groupId: string) => {
     setMembersLoading(true);
     const loadedMembers = await getGroupMembers(groupId);
+    const loadedPending = await getPendingMembers(groupId);
     setMembers(loadedMembers);
+    setPendingMembers(loadedPending);
     setMembersLoading(false);
-  }, [getGroupMembers]);
+  }, [getGroupMembers, getPendingMembers]);
 
   const refreshBalances = useCallback(async () => {
     setBalancesLoading(true);
@@ -169,6 +171,7 @@ export default function GroupDetail() {
             </div>
           </div>
           <ThemeToggle />
+          <NotificationBell />
         </div>
       </header>
 
@@ -215,45 +218,18 @@ export default function GroupDetail() {
               <Users className="w-4 h-4" />
               <h3 className="font-semibold">{membersLoading ? 'Members' : `Members (${members.length})`}</h3>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setAddingMember((prev) => !prev)}>
-              <Plus className="w-3 h-3 mr-1" />
+            <Button variant="outline" size="sm" onClick={() => setShowAddMember(true)}>
+              <UserPlus className="w-3 h-3 mr-1" />
               Add
             </Button>
           </div>
-
-          {addingMember && (
-            <form
-              className="mb-3 flex gap-2"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                if (!id || !memberQuery.trim()) return;
-                const { error } = await addMemberByEmail(id, memberQuery.trim());
-                if (error) {
-                  toast.error(error.message || 'Failed to add member');
-                } else {
-                  toast.success('Member added');
-                  setMemberQuery('');
-                  await refreshMembers(id);
-                }
-              }}
-            >
-              <Input
-                value={memberQuery}
-                onChange={(event) => setMemberQuery(event.target.value)}
-                placeholder="Enter member email"
-              />
-              <Button type="submit" disabled={!memberQuery.trim()}>
-                Add
-              </Button>
-            </form>
-          )}
 
           <div className="flex gap-2 overflow-x-auto pb-2" aria-busy={membersLoading}>
             {membersLoading
               ? Array.from({ length: 5 }).map((_, index) => (
                   <div key={`member-loading-${index}`} className="flex flex-col items-center gap-1 min-w-[60px]">
-                    <Skeleton className="h-12 w-12 rounded-full" />
-                    <Skeleton className="h-3 w-12" />
+                    <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                    <div className="h-3 w-12 bg-muted animate-pulse rounded" />
                   </div>
                 ))
               : members.map((member) => (
@@ -264,6 +240,14 @@ export default function GroupDetail() {
                     </span>
                   </div>
                 ))}
+            {pendingMembers.map((p) => (
+              <div key={p.id} className="flex flex-col items-center gap-1 min-w-[60px] opacity-60">
+                <div className="w-12 h-12 rounded-full bg-muted border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                  <span className="text-lg">?</span>
+                </div>
+                <span className="text-[10px] text-amber-500 truncate max-w-[60px]">Invited</span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -338,6 +322,19 @@ export default function GroupDetail() {
         }}
         groupId={id || ''}
       />
+
+      {showAddMember && (
+        <AddMemberDialog
+          groupId={id || ''}
+          members={members}
+          pendingMembers={pendingMembers}
+          onClose={() => setShowAddMember(false)}
+          onAdded={async () => {
+            setShowAddMember(false);
+            if (id) await refreshMembers(id);
+          }}
+        />
+      )}
     </div>
   );
 }
