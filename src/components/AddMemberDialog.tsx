@@ -22,8 +22,14 @@ export function AddMemberDialog({ groupId, members, pendingMembers, onClose, onA
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const isValidEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
+
   const handleAdd = async () => {
     if (!email.trim()) return;
+    if (!isValidEmail(email)) {
+      toast.error('Please enter a valid email address (e.g. friend@example.com)');
+      return;
+    }
     setLoading(true);
     const { error } = await addMemberByEmail(groupId, email.trim(), name.trim() || undefined);
     setLoading(false);
