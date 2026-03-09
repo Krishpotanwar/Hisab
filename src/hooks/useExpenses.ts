@@ -91,6 +91,16 @@ export function useExpenses(groupId: string | null) {
     fetchExpenses();
   }, [fetchExpenses]);
 
+  // Fix #21: Realtime subscription for expenses
+  useEffect(() => {
+    if (!groupId) return;
+    const channel = supabase
+      .channel(`expenses:${groupId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `group_id=eq.${groupId}` }, () => fetchExpenses())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [groupId, fetchExpenses]);
+
   const createExpense = async (
     description: string,
     amount: number,

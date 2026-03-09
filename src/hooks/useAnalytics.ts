@@ -24,14 +24,69 @@ export interface CategoryData {
 }
 
 const CATEGORY_META: Record<string, { label: string; icon: string }> = {
-  food:          { label: 'Food & Drinks',   icon: '🍔' },
-  transport:     { label: 'Transport',        icon: '🚗' },
-  entertainment: { label: 'Entertainment',    icon: '🎬' },
-  shopping:      { label: 'Shopping',         icon: '🛍️' },
-  utilities:     { label: 'Utilities',        icon: '💡' },
-  healthcare:    { label: 'Healthcare',       icon: '🏥' },
-  other:         { label: 'Other',            icon: '📦' },
+  food: { label: 'Food & Drinks', icon: '🍔' },
+  transport: { label: 'Transport', icon: '🚗' },
+  entertainment: { label: 'Entertainment', icon: '🎬' },
+  shopping: { label: 'Shopping', icon: '🛍️' },
+  utilities: { label: 'Utilities', icon: '💡' },
+  healthcare: { label: 'Healthcare', icon: '🏥' },
+  other: { label: 'Other', icon: '📦' },
 };
+
+// Fix #4: Helper to fetch single group balance
+async function fetchGroupBalance(gid: string, userId: string) {
+  const [membersRes, expsRes, settlementsRes] = await Promise.all([
+    supabase.from('group_members').select('user_id, profiles(full_name)').eq('group_id', gid),
+    supabase.from('expenses').select('id, amount, paid_by').eq('group_id', gid),
+    supabase.from('settlements').select('from_user, to_user, amount').eq('group_id', gid),
+  ]);
+
+  const members = membersRes.data ?? [];
+  const exps = expsRes.data ?? [];
+  const settlements = settlementsRes.data ?? [];
+
+  const expIds = exps.map((e: any) => e.id);
+  let splits: any[] = [];
+  if (expIds.length > 0) {
+    const { data } = await supabase
+      .from('expense_splits')
+      .select('expense_id, user_id, amount')
+      .in('expense_id', expIds);
+    splits = data ?? [];
+  }
+
+  // Calculate per-member balances
+  const bal: Record<string, number> = {};
+  members.forEach((m: any) => { bal[m.user_id] = 0; });
+  exps.forEach((e: any) => { if (bal[e.paid_by] !== undefined) bal[e.paid_by] += Number(e.amount); });
+  splits.forEach((s: any) => { if (bal[s.user_id] !== undefined) bal[s.user_id] -= Number(s.amount); });
+  settlements.forEach((s: any) => {
+    if (bal[s.from_user] !== undefined) bal[s.from_user] -= Number(s.amount);
+    if (bal[s.to_user] !== undefined) bal[s.to_user] += Number(s.amount);
+  });
+
+  return { members, bal };
+}
+
+// Fix #4: Helper to fetch monthly expenses
+async function fetchMonthlyExpenses(from: string, to: string, groupIds: string[], userId: string) {
+  const { data: expRows } = await supabase
+    .from('expenses')
+    .select('amount, paid_by, expense_splits(user_id, amount)')
+    .in('group_id', groupIds)
+    .gte('date', from)
+    .lte('date', to);
+
+  let total = 0;
+  let myShare = 0;
+  (expRows ?? []).forEach((e: any) => {
+    total += Number(e.amount);
+    const split = (e.expense_splits ?? []).find((s: any) => s.user_id === userId);
+    if (split) myShare += Number(split.amount);
+  });
+
+  return { total, myShare };
+}
 
 export function useAnalytics() {
   const { user } = useAuth();
@@ -64,92 +119,52 @@ export function useAnalytics() {
       return;
     }
 
-    // ── 2. Monthly spending (last 6 months) ──────────────────
-    const months: MonthlyData[] = [];
+    // ── 2. Monthly spending (last 6 months) — Fix #4: parallelize ──
     const now = new Date();
+    const monthRanges = Array.from({ length: 6 }, (_, i) => {
+      const d = subMonths(now, 5 - i);
+      return {
+        d,
+        from: startOfMonth(d).toISOString().slice(0, 10),
+        to: endOfMonth(d).toISOString().slice(0, 10),
+      };
+    });
 
-    for (let i = 5; i >= 0; i--) {
-      const d = subMonths(now, i);
-      const from = startOfMonth(d).toISOString().slice(0, 10);
-      const to   = endOfMonth(d).toISOString().slice(0, 10);
+    const monthlyResults = await Promise.all(
+      monthRanges.map(({ from, to }) => fetchMonthlyExpenses(from, to, groupIds, user.id))
+    );
 
-      const { data: expRows } = await supabase
-        .from('expenses')
-        .select('amount, paid_by, expense_splits(user_id, amount)')
-        .in('group_id', groupIds)
-        .gte('date', from)
-        .lte('date', to);
-
-      let total = 0;
-      let myShare = 0;
-      (expRows ?? []).forEach((e: any) => {
-        total += Number(e.amount);
-        const split = (e.expense_splits ?? []).find((s: any) => s.user_id === user.id);
-        if (split) myShare += Number(split.amount);
-      });
-
-      months.push({ month: format(d, 'MMM'), total, myShare });
-    }
+    const months: MonthlyData[] = monthlyResults.map((result, i) => ({
+      month: format(monthRanges[i].d, 'MMM'),
+      total: result.total,
+      myShare: result.myShare,
+    }));
 
     setMonthlyData(months);
     setTotalThisMonth(months[months.length - 1]?.myShare ?? 0);
 
-    // ── 3. Per-group balances ─────────────────────────────────
+    // ── 3. Per-group balances — Fix #4: parallelize + Fix #5: correct calculation ──
+    const groupResults = await Promise.all(
+      groupIds.map(gid => fetchGroupBalance(gid, user.id))
+    );
+
     const allBalances: BalanceSummary[] = [];
 
-    for (const gid of groupIds) {
-      const { data: members } = await supabase
-        .from('group_members')
-        .select('user_id, profiles(full_name)')
-        .eq('group_id', gid);
-
-      const { data: exps } = await supabase
-        .from('expenses')
-        .select('id, amount, paid_by')
-        .eq('group_id', gid);
-
-      const expIds = (exps ?? []).map((e: any) => e.id);
-      let splits: any[] = [];
-      if (expIds.length > 0) {
-        const { data } = await supabase
-          .from('expense_splits')
-          .select('expense_id, user_id, amount')
-          .in('expense_id', expIds);
-        splits = data ?? [];
-      }
-
-      const { data: settlements } = await supabase
-        .from('settlements')
-        .select('from_user, to_user, amount')
-        .eq('group_id', gid);
-
-      const bal: Record<string, number> = {};
-      (members ?? []).forEach((m: any) => { bal[m.user_id] = 0; });
-      (exps ?? []).forEach((e: any) => { if (bal[e.paid_by] !== undefined) bal[e.paid_by] += Number(e.amount); });
-      splits.forEach((s: any) => { if (bal[s.user_id] !== undefined) bal[s.user_id] -= Number(s.amount); });
-      (settlements ?? []).forEach((s: any) => {
-        if (bal[s.from_user] !== undefined) bal[s.from_user] -= Number(s.amount);
-        if (bal[s.to_user]   !== undefined) bal[s.to_user]   += Number(s.amount);
-      });
-
+    groupResults.forEach(({ members, bal }, idx) => {
+      const gid = groupIds[idx];
       const myBal = bal[user.id] ?? 0;
 
-      (members ?? []).forEach((m: any) => {
-        if (m.user_id === user.id) return;
-        const theirBal = bal[m.user_id] ?? 0;
-        // If I have positive balance and they negative → they owe me
-        // Simplified: net between me and them
-        const net = -(theirBal); // positive = they owe me
-        if (Math.abs(net) > 0.01) {
-          allBalances.push({
-            userId: m.user_id,
-            name: m.profiles?.full_name ?? 'Unknown',
-            groupName: groupNames[gid],
-            amount: myBal > 0 && theirBal < 0 ? Math.min(myBal, -theirBal) : myBal < 0 && theirBal > 0 ? -Math.min(-myBal, theirBal) : 0,
-          });
-        }
-      });
-    }
+      // Fix #5: Simply report MY balance in this group
+      // A positive balance means the group owes me, negative means I owe the group
+      if (Math.abs(myBal) > 0.01) {
+        allBalances.push({
+          userId: gid, // use group as key
+          name: groupNames[gid],
+          groupName: groupNames[gid],
+          amount: myBal,
+        });
+      }
+    });
 
     const meaningful = allBalances.filter((b) => Math.abs(b.amount) > 0.01);
     setBalances(meaningful);

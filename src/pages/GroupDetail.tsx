@@ -31,7 +31,7 @@ export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { expenses, loading, getBalances } = useExpenses(id || null);
+  const { expenses, loading, getBalances, createExpense } = useExpenses(id || null);
   const { getGroupMembers, getPendingMembers } = useGroups();
   const { processingPayment, startSettlementPayment } = usePayments();
 
@@ -227,19 +227,19 @@ export default function GroupDetail() {
           <div className="flex gap-2 overflow-x-auto pb-2" aria-busy={membersLoading}>
             {membersLoading
               ? Array.from({ length: 5 }).map((_, index) => (
-                  <div key={`member-loading-${index}`} className="flex flex-col items-center gap-1 min-w-[60px]">
-                    <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
-                    <div className="h-3 w-12 bg-muted animate-pulse rounded" />
-                  </div>
-                ))
+                <div key={`member-loading-${index}`} className="flex flex-col items-center gap-1 min-w-[60px]">
+                  <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                  <div className="h-3 w-12 bg-muted animate-pulse rounded" />
+                </div>
+              ))
               : members.map((member) => (
-                  <div key={member.user_id} className="flex flex-col items-center gap-1 min-w-[60px]">
-                    <MemberAvatar name={member.full_name} size="lg" />
-                    <span className="text-xs text-muted-foreground truncate max-w-[60px]">
-                      {member.full_name.split(' ')[0]}
-                    </span>
-                  </div>
-                ))}
+                <div key={member.user_id} className="flex flex-col items-center gap-1 min-w-[60px]">
+                  <MemberAvatar name={member.full_name} size="lg" />
+                  <span className="text-xs text-muted-foreground truncate max-w-[60px]">
+                    {member.full_name.split(' ')[0]}
+                  </span>
+                </div>
+              ))}
             {pendingMembers.map((p) => (
               <div key={p.id} className="flex flex-col items-center gap-1 min-w-[60px] opacity-60">
                 <div className="w-12 h-12 rounded-full bg-muted border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
@@ -274,7 +274,7 @@ export default function GroupDetail() {
                     <span className="font-medium">{balance.full_name}</span>
                   </div>
                   <span className={balance.balance >= 0 ? 'text-success font-semibold' : 'text-destructive font-semibold'}>
-                    {balance.balance >= 0 ? '+' : ''}₹{balance.balance.toFixed(2)}
+                    {balance.balance >= 0 ? '+' : ''}₹{Math.abs(balance.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               ))}
@@ -321,6 +321,7 @@ export default function GroupDetail() {
           await refreshBalances();
         }}
         groupId={id || ''}
+        createExpense={createExpense}
       />
 
       {showAddMember && (

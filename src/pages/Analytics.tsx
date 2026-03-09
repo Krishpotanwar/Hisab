@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import { BottomNav } from '@/components/BottomNav';
 
-const PIE_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#f97316'];
+const PIE_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#f97316'];
 
 const fmt = (n: number) =>
   n >= 1000 ? `₹${(n / 1000).toFixed(1)}k` : `₹${n.toFixed(0)}`;
@@ -18,12 +18,12 @@ export default function Analytics() {
   const navigate = useNavigate();
   const { monthlyData, balances, categoryData, totalThisMonth, totalOwedToMe, totalIOwe, loading } = useAnalytics();
 
-  const iOwe   = balances.filter((b) => b.amount < 0);
-  const oweMe  = balances.filter((b) => b.amount > 0);
+  const iOwe = balances.filter((b) => b.amount < 0);
+  const oweMe = balances.filter((b) => b.amount > 0);
 
   const balanceChartData = [
-    ...iOwe.map((b)  => ({ name: b.name, amount: -b.amount,  fill: '#ef4444', type: 'I owe' })),
-    ...oweMe.map((b) => ({ name: b.name, amount: b.amount,   fill: '#10b981', type: 'Owes me' })),
+    ...iOwe.map((b) => ({ name: b.name, amount: -b.amount, fill: '#ef4444', type: 'I owe' })),
+    ...oweMe.map((b) => ({ name: b.name, amount: b.amount, fill: '#10b981', type: 'Owes me' })),
   ].slice(0, 10);
 
   if (loading) {
@@ -40,7 +40,7 @@ export default function Analytics() {
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="container max-w-2xl mx-auto px-4 pb-4 pt-[calc(1rem+var(--safe-area-top))] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
@@ -57,7 +57,7 @@ export default function Analytics() {
           {[
             { label: 'This month', value: totalThisMonth, icon: TrendingUp, color: 'text-primary' },
             { label: 'Owed to me', value: totalOwedToMe, icon: IndianRupee, color: 'text-green-500' },
-            { label: 'I owe',      value: totalIOwe,      icon: IndianRupee, color: 'text-red-500' },
+            { label: 'I owe', value: totalIOwe, icon: IndianRupee, color: 'text-red-500' },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-card rounded-2xl p-3 border border-border/50 shadow-sm text-center">
               <Icon className={`w-4 h-4 mx-auto mb-1 ${color}`} />
@@ -87,8 +87,8 @@ export default function Analytics() {
                   contentStyle={{ borderRadius: 12, border: '1px solid var(--border)', background: 'var(--background)', fontSize: 12 }}
                   cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
                 />
-                <Bar dataKey="total"   fill="#6366f133" radius={[4,4,0,0]} name="total" />
-                <Bar dataKey="myShare" fill="#6366f1"   radius={[4,4,0,0]} name="myShare" />
+                <Bar dataKey="total" fill="#6366f133" radius={[4, 4, 0, 0]} name="total" />
+                <Bar dataKey="myShare" fill="#6366f1" radius={[4, 4, 0, 0]} name="myShare" />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -118,7 +118,7 @@ export default function Analytics() {
                     formatter={(val: number) => [fmt(val)]}
                     contentStyle={{ borderRadius: 12, border: '1px solid var(--border)', background: 'var(--background)', fontSize: 12 }}
                   />
-                  <Bar dataKey="amount" radius={[0,4,4,0]}>
+                  <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
                     {balanceChartData.map((entry, i) => (
                       <Cell key={i} fill={entry.fill} />
                     ))}

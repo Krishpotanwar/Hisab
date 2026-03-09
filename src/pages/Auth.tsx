@@ -64,12 +64,18 @@ export default function Auth() {
     setLoading(true);
     if (isLogin) {
       const { error } = await signIn(email, password);
-      if (error) toast.error(friendlyAuthError(error.message));
-      else navigate('/', { replace: true });
+      if (error) {
+        toast.error(friendlyAuthError(error.message));
+        setLoading(false);
+      } else {
+        navigate('/', { replace: true });
+        // Don't set loading — component is gone after navigation
+      }
     } else {
       const { error } = await signUp(email, password, fullName.trim(), phone.trim() || undefined);
       if (error) {
         toast.error(friendlyAuthError(error.message));
+        setLoading(false);
       } else {
         toast.success('Account created! Welcome to HisaabKitaab 🎉');
         // Check if they had pending group invites (DB trigger auto-claimed them)
@@ -88,9 +94,9 @@ export default function Auth() {
           // pending_members table may not be set up yet — ignore
         }
         navigate('/', { replace: true });
+        // Don't set loading — component is gone after navigation
       }
     }
-    setLoading(false);
   };
 
   const handleGoogle = async () => {

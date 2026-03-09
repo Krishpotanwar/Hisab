@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   User, Mail, Phone, Moon, Sun, Bell, Shield, LogOut,
@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
-import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { BottomNav } from '@/components/BottomNav';
 
@@ -50,7 +49,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export default function Profile() {
   const { user, signOut } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  );
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.classList.toggle('dark', next === 'dark');
+    localStorage.setItem('theme', next);
+    setTheme(next);
+  };
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(user?.user_metadata?.full_name ?? '');
@@ -185,7 +192,7 @@ export default function Profile() {
               : <Sun className="w-4 h-4 text-amber-500" />}
             label="Appearance"
             value={theme === 'dark' ? 'Dark mode' : 'Light mode'}
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={toggleTheme}
             right={
               <div className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${theme === 'dark' ? 'bg-primary' : 'bg-muted-foreground/30'}`}>
                 <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-5' : 'translate-x-0'}`} />

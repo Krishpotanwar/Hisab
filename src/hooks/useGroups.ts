@@ -101,7 +101,11 @@ export function useGroups() {
       user_id: user.id,
     });
 
-    if (memberError) return { error: memberError };
+    if (memberError) {
+      // Fix #6: Rollback — delete the orphaned group
+      await supabase.from('groups').delete().eq('id', groupData.id);
+      return { error: memberError };
+    }
 
     await fetchGroups();
     return { data: groupData, error: null };
@@ -140,16 +144,8 @@ export function useGroups() {
       return { error: new Error('Enter a valid email address') };
     }
 
-    // Look up if user already has an account via auth (edge function side)
-    // Client-side: check profiles table (profiles are created on signup)
-    const { data: profileRows } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .limit(100);
-
-    // We can't query by email directly on profiles (no email col) so use edge function
-    // For now: try to find by checking auth via edge function call
-    // Fallback: add to pending_members, edge function will send email
+    // Fix #9: Removed dead profile fetch (profileRows was never used)
+    // Try to add as pending member, edge function will send email
     const { data: pending, error: pendingError } = await supabase
       .from('pending_members')
       .insert({

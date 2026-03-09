@@ -9,13 +9,13 @@ import { CreateGroupDialog } from '@/components/CreateGroupDialog';
 import { BottomNav } from '@/components/BottomNav';
 import { useNavigate } from 'react-router-dom';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { NotificationBell } from '@/components/NotificationBell';
 import { DashboardSkeleton } from '@/components/DashboardSkeleton';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { groups, loading, createGroup } = useGroups();
   const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [showBell, setShowBell] = useState(false);
   const navigate = useNavigate();
   const displayName =
     user?.user_metadata?.full_name?.split(' ')[0] ||
@@ -37,7 +37,10 @@ export default function Dashboard() {
               <p className="text-xs text-muted-foreground">Welcome back, {displayName}.</p>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
