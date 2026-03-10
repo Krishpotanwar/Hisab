@@ -1,14 +1,16 @@
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getCurrencySymbol } from '@/utils/currency';
 
 interface BalanceCardProps {
   balance: number;
   label?: string;
+  currency?: string;
   className?: string;
 }
 
-export function BalanceCard({ balance, label = "Your balance", className }: BalanceCardProps) {
+export function BalanceCard({ balance, label = "Your balance", currency = "INR", className }: BalanceCardProps) {
   const isPositive = balance > 0;
   const isNegative = balance < 0;
   const isZero = balance === 0;
@@ -57,7 +59,7 @@ export function BalanceCard({ balance, label = "Your balance", className }: Bala
             )}>
               {isPositive && "+"} 
               {isNegative && "-"}
-              ₹{Math.abs(balance).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              {getCurrencySymbol(currency)}{Math.abs(balance).toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US', { maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>

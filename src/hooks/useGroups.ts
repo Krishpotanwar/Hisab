@@ -35,6 +35,7 @@ export interface Group {
   name: string;
   description: string | null;
   icon: string;
+  currency: string;
   created_by: string;
   created_at: string;
   member_count?: number;
@@ -80,7 +81,7 @@ export function useGroups() {
     fetchGroups();
   }, [fetchGroups]);
 
-  const createGroup = async (name: string, description?: string, icon?: string) => {
+  const createGroup = async (name: string, description?: string, icon?: string, currency?: string) => {
     if (!user) return { error: new Error('Not authenticated') };
 
     const { data: groupData, error: groupError } = await supabase
@@ -89,6 +90,7 @@ export function useGroups() {
         name,
         description: description || null,
         icon: icon || '👥',
+        currency: currency || 'INR',
         created_by: user.id,
       })
       .select()

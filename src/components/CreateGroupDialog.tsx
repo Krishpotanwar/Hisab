@@ -6,12 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { CURRENCIES } from '@/utils/currency';
 
 interface CreateGroupDialogProps {
   open: boolean;
   onClose: () => void;
-  // Passed from Dashboard so both list and dialog use the same groups hook instance
-  createGroup: (name: string, description?: string, icon?: string) => Promise<{
+  createGroup: (name: string, description?: string, icon?: string, currency?: string) => Promise<{
     data?: unknown;
     error: Error | null;
   }>;
@@ -23,6 +23,7 @@ export function CreateGroupDialog({ open, onClose, createGroup }: CreateGroupDia
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('👥');
+  const [currency, setCurrency] = useState('INR');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,7 +31,7 @@ export function CreateGroupDialog({ open, onClose, createGroup }: CreateGroupDia
     if (!name.trim()) return;
 
     setLoading(true);
-    const { error } = await createGroup(name.trim(), description.trim(), icon);
+    const { error } = await createGroup(name.trim(), description.trim(), icon, currency);
     setLoading(false);
 
     if (error) {
@@ -41,6 +42,7 @@ export function CreateGroupDialog({ open, onClose, createGroup }: CreateGroupDia
       setName('');
       setDescription('');
       setIcon('👥');
+      setCurrency('INR');
       onClose();
     }
   };
@@ -115,6 +117,22 @@ export function CreateGroupDialog({ open, onClose, createGroup }: CreateGroupDia
                     className="mt-1.5 resize-none"
                     rows={2}
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="currency">Currency</Label>
+                  <select
+                    id="currency"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.symbol} {c.code} — {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

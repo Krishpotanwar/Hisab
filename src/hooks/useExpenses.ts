@@ -29,6 +29,8 @@ export interface Expense {
   date: string;
   notes: string | null;
   created_at: string;
+  is_recurring?: boolean;
+  recurring_interval?: string | null;
 }
 
 export interface ExpenseSplit {
@@ -109,6 +111,8 @@ export function useExpenses(groupId: string | null) {
     date?: string,
     notes?: string,
     paidBy?: string,
+    isRecurring?: boolean,
+    recurringInterval?: string,
   ) => {
     if (!user || !groupId) return { error: new Error('Not authenticated or no group selected') };
 
@@ -122,6 +126,8 @@ export function useExpenses(groupId: string | null) {
         paid_by: paidBy || user.id,
         date: date || new Date().toISOString().slice(0, 10),
         notes: notes || null,
+        is_recurring: isRecurring ?? false,
+        recurring_interval: isRecurring ? (recurringInterval || null) : null,
       })
       .select()
       .single();
@@ -192,7 +198,7 @@ export function useExpenses(groupId: string | null) {
 
     const { data: expensesData, error: expensesError } = await supabase
       .from('expenses')
-      .select('id, amount, paid_by')
+      .select('id, amount, paid_by, notes')
       .eq('group_id', groupId);
 
     if (expensesError) return [];
@@ -225,8 +231,27 @@ export function useExpenses(groupId: string | null) {
     });
 
     expensesData?.forEach((expense) => {
-      if (balances[expense.paid_by] !== undefined) {
-        balances[expense.paid_by] += Number(expense.amount);
+      // Check for multi-payer data in notes
+      const notes = (expense as any).notes as string | null;
+      const multiPayerMatch = notes?.match(/__MULTIPAYER__(.+)/);
+      if (multiPayerMatch) {
+        try {
+          const payers = JSON.parse(multiPayerMatch[1]) as { userId: string; amount: number }[];
+          for (const p of payers) {
+            if (balances[p.userId] !== undefined) {
+              balances[p.userId] += Number(p.amount);
+            }
+          }
+        } catch {
+          // Fallback to single payer
+          if (balances[expense.paid_by] !== undefined) {
+            balances[expense.paid_by] += Number(expense.amount);
+          }
+        }
+      } else {
+        if (balances[expense.paid_by] !== undefined) {
+          balances[expense.paid_by] += Number(expense.amount);
+        }
       }
     });
 

@@ -1,15 +1,18 @@
 import { motion } from 'framer-motion';
+import { Repeat } from 'lucide-react';
 import { Expense, getCategoryInfo } from '@/hooks/useExpenses';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { getCurrencySymbol } from '@/utils/currency';
 import { ExpenseComments } from '@/components/ExpenseComments';
 
 interface ExpenseCardProps {
   expense: Expense;
   index?: number;
+  currency?: string;
 }
 
-export function ExpenseCard({ expense, index = 0 }: ExpenseCardProps) {
+export function ExpenseCard({ expense, index = 0, currency = 'INR' }: ExpenseCardProps) {
   const { user } = useAuth();
   const category = getCategoryInfo(expense.category);
   const isPayer = expense.paid_by === user?.id;
@@ -38,7 +41,15 @@ export function ExpenseCard({ expense, index = 0 }: ExpenseCardProps) {
         </div>
         
         <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-foreground truncate">{expense.description}</h4>
+          <div className="flex items-center gap-1.5">
+            <h4 className="font-medium text-foreground truncate">{expense.description}</h4>
+            {expense.is_recurring && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold flex-shrink-0">
+                <Repeat className="w-2.5 h-2.5" />
+                {expense.recurring_interval ? expense.recurring_interval.charAt(0).toUpperCase() + expense.recurring_interval.slice(1) : 'Recurring'}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             {isPayer ? 'You paid' : `${expense.paid_by_name} paid`}
           </p>
@@ -46,7 +57,7 @@ export function ExpenseCard({ expense, index = 0 }: ExpenseCardProps) {
         
         <div className="text-right">
           <p className="font-semibold text-foreground">
-            ₹{Number(expense.amount).toLocaleString('en-IN')}
+            {getCurrencySymbol(currency)}{Number(expense.amount).toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US')}
           </p>
           <p className="text-xs text-muted-foreground">
             {new Date(expense.date).toLocaleDateString('en-IN', { 

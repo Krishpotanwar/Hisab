@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Check, Calendar } from 'lucide-react';
+import { X, Plus, Check, Calendar, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +26,8 @@ interface AddExpenseDialogProps {
     date?: string,
     notes?: string,
     paidBy?: string,
+    isRecurring?: boolean,
+    recurringInterval?: string,
   ) => Promise<{ error: Error | null; data?: any }>;
 }
 
@@ -50,6 +52,9 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
   const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
   const [paidBy, setPaidBy] = useState<string>(user?.id ?? '');
+  const [multiPayer, setMultiPayer] = useState(false);
+  const [payerAmounts, setPayerAmounts] = useState<Record<string, string>>({});
+  const [selectedPayers, setSelectedPayers] = useState<string[]>([]);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [membersLoading, setMembersLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -59,6 +64,8 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   // Maps userId -> percent string (for percent mode)
   const [percentValues, setPercentValues] = useState<Record<string, string>>({});
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringInterval, setRecurringInterval] = useState<string>('monthly');
 
   useEffect(() => {
     if (open && groupId) {
@@ -128,7 +135,19 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
   const percentRemaining = Math.round((100 - percentTotal) * 100) / 100;
   const isPercentValid = splitMode !== 'percent' || (Math.abs(percentRemaining) < 0.01);
 
-  const isSplitValid = splitMode === 'equal' || isCustomValid || isPercentValid;
+  // Validation for multiple payers
+  const payerTotal = useMemo(() => {
+    if (!multiPayer) return amountNum;
+    return selectedPayers.reduce((sum, id) => {
+      const val = parseFloat(payerAmounts[id] || '0');
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+  }, [multiPayer, payerAmounts, selectedPayers, amountNum]);
+
+  const payerRemaining = Math.round((amountNum - payerTotal) * 100) / 100;
+  const isPayerValid = !multiPayer || (selectedPayers.length > 0 && Math.abs(payerRemaining) < 0.01 && amountNum > 0);
+
+  const isSplitValid = (splitMode === 'equal' || isCustomValid || isPercentValid) && isPayerValid;
 
   const updateCustomAmount = (userId: string, value: string) => {
     setCustomAmounts(prev => ({ ...prev, [userId]: value }));
@@ -186,21 +205,41 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
       }));
     }
 
-    // Build notes for pending members
+    // Build notes
+    const notesParts: string[] = [];
+
+    // Multi-payer info encoded in notes
+    if (multiPayer && selectedPayers.length > 1) {
+      const multiPayerData = selectedPayers.map(uid => ({
+        userId: uid,
+        amount: parseFloat(payerAmounts[uid] || '0'),
+      }));
+      notesParts.push(`__MULTIPAYER__${JSON.stringify(multiPayerData)}`);
+    }
+
+    // Pending member notes
     const selectedPending = pendingMembers.filter(p => selectedPendingIds.includes(p.id));
-    let pendingNotes: string | undefined;
     if (selectedPending.length > 0) {
       if (splitMode === 'equal') {
         const baseSplit = Math.floor((totalAmount / totalSplitCount) * 100) / 100;
-        pendingNotes = selectedPending
+        notesParts.push(selectedPending
           .map(p => `Invited: ${p.invited_name || p.invited_email} owes ₹${baseSplit.toFixed(2)}`)
-          .join('; ');
+          .join('; '));
       } else {
-        pendingNotes = selectedPending
+        notesParts.push(selectedPending
           .map(p => `Invited: ${p.invited_name || p.invited_email} (split pending)`)
-          .join('; ');
+          .join('; '));
       }
     }
+
+    const finalNotes = notesParts.length > 0 ? notesParts.join('\n') : undefined;
+    const primaryPayer = multiPayer && selectedPayers.length > 0
+      ? selectedPayers.reduce((best, uid) => {
+          const bestAmt = parseFloat(payerAmounts[best] || '0');
+          const curAmt = parseFloat(payerAmounts[uid] || '0');
+          return curAmt > bestAmt ? uid : best;
+        })
+      : paidBy;
 
     setLoading(true);
     const { error } = await createExpense(
@@ -209,8 +248,10 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
       category,
       splits,
       date,
-      pendingNotes,
-      paidBy,
+      finalNotes,
+      primaryPayer,
+      isRecurring,
+      isRecurring ? recurringInterval : undefined,
     );
     setLoading(false);
 
@@ -225,6 +266,11 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
       setSplitMode('equal');
       setCustomAmounts({});
       setPercentValues({});
+      setIsRecurring(false);
+      setRecurringInterval('monthly');
+      setMultiPayer(false);
+      setPayerAmounts({});
+      setSelectedPayers([]);
       onClose();
     }
   };
@@ -341,29 +387,105 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
 
                   {/* Paid By selector */}
                   <div>
-                    <Label className="text-sm font-medium mb-2 block">Paid by</Label>
-                    <div className="flex gap-2 flex-wrap" aria-busy={membersLoading}>
-                      {membersLoading
-                        ? Array.from({ length: 3 }).map((_, index) => (
-                          <Skeleton key={`paid-skeleton-${index}`} className="h-8 w-20 rounded-full" />
-                        ))
-                        : members.map(m => (
-                          <button
-                            key={m.user_id}
-                            type="button"
-                            onClick={() => setPaidBy(m.user_id)}
-                            className={cn(
-                              "px-3 py-1.5 rounded-full text-sm transition-all",
-                              paidBy === m.user_id
-                                ? 'bg-primary text-primary-foreground ring-2 ring-primary/50'
-                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                            )}
-                          >
-                            {m.full_name.split(' ')[0]}
-                          </button>
-                        ))
-                      }
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-sm font-medium">Paid by</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMultiPayer(prev => {
+                            if (!prev) {
+                              setSelectedPayers([user?.id ?? members[0]?.user_id ?? '']);
+                              setPayerAmounts({});
+                            }
+                            return !prev;
+                          });
+                        }}
+                        className={cn(
+                          "text-xs px-2 py-0.5 rounded-full transition-all",
+                          multiPayer
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        )}
+                      >
+                        {multiPayer ? 'Multiple' : 'Single'}
+                      </button>
                     </div>
+
+                    {!multiPayer ? (
+                      <div className="flex gap-2 flex-wrap" aria-busy={membersLoading}>
+                        {membersLoading
+                          ? Array.from({ length: 3 }).map((_, index) => (
+                            <Skeleton key={`paid-skeleton-${index}`} className="h-8 w-20 rounded-full" />
+                          ))
+                          : members.map(m => (
+                            <button
+                              key={m.user_id}
+                              type="button"
+                              onClick={() => setPaidBy(m.user_id)}
+                              className={cn(
+                                "px-3 py-1.5 rounded-full text-sm transition-all",
+                                paidBy === m.user_id
+                                  ? 'bg-primary text-primary-foreground ring-2 ring-primary/50'
+                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                              )}
+                            >
+                              {m.full_name.split(' ')[0]}
+                            </button>
+                          ))
+                        }
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {!membersLoading && members.map(m => {
+                          const isSelected = selectedPayers.includes(m.user_id);
+                          return (
+                            <div key={m.user_id} className={cn(
+                              "flex items-center gap-3 p-3 rounded-xl transition-all",
+                              isSelected ? 'bg-primary/10 ring-1 ring-primary/30' : 'bg-muted'
+                            )}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPayers(prev =>
+                                    prev.includes(m.user_id)
+                                      ? prev.filter(id => id !== m.user_id)
+                                      : [...prev, m.user_id]
+                                  );
+                                }}
+                                className="flex items-center gap-2 flex-1 text-left"
+                              >
+                                <MemberAvatar name={m.full_name} size="sm" />
+                                <span className="text-sm font-medium">{m.full_name.split(' ')[0]}</span>
+                              </button>
+                              {isSelected && (
+                                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                  <span className="text-xs text-muted-foreground">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={payerAmounts[m.user_id] ?? ''}
+                                    onChange={e => setPayerAmounts(prev => ({ ...prev, [m.user_id]: e.target.value }))}
+                                    className="w-20 h-7 rounded-md border border-border bg-background px-2 text-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {amount && selectedPayers.length > 0 && (
+                          <p className={cn(
+                            "text-sm text-center font-medium",
+                            isPayerValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+                          )}>
+                            {isPayerValid
+                              ? 'Payer amounts match total'
+                              : `Remaining: ₹${payerRemaining.toFixed(2)} of ₹${amountNum.toFixed(2)}`}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Split mode selector */}
@@ -543,6 +665,48 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
                           ? 'Percentages add up to 100%'
                           : `Total: ${percentTotal.toFixed(1)}% — remaining: ${percentRemaining.toFixed(1)}%`}
                       </p>
+                    )}
+                  </div>
+
+                  {/* Recurring expense toggle */}
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsRecurring(prev => !prev)}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
+                        isRecurring
+                          ? 'bg-primary/10 ring-1 ring-primary/30'
+                          : 'bg-muted hover:bg-muted/80'
+                      )}
+                    >
+                      <Repeat className={cn("w-4 h-4", isRecurring ? "text-primary" : "text-muted-foreground")} />
+                      <span className="flex-1 text-left text-sm font-medium">Recurring expense</span>
+                      {isRecurring && (
+                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="w-3 h-3 text-primary-foreground" />
+                        </div>
+                      )}
+                    </button>
+
+                    {isRecurring && (
+                      <div className="flex gap-2">
+                        {(['weekly', 'monthly', 'yearly'] as const).map((interval) => (
+                          <button
+                            key={interval}
+                            type="button"
+                            onClick={() => setRecurringInterval(interval)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-full text-sm capitalize transition-all",
+                              recurringInterval === interval
+                                ? 'bg-primary text-primary-foreground ring-2 ring-primary/50'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                            )}
+                          >
+                            {interval}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>

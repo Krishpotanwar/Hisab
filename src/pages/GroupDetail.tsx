@@ -23,6 +23,8 @@ import { GroupDetailSkeleton } from '@/components/GroupDetailSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { exportExpensesToCSV, exportExpensesToPDF } from '@/utils/exportData';
+import { getCurrencySymbol } from '@/utils/currency';
+import { SendReminderButton } from '@/components/SendReminderButton';
 
 type GroupRecord = Tables<'groups'>;
 interface SettlementSuggestion {
@@ -98,6 +100,7 @@ export default function GroupDetail() {
     refreshBalances();
   }, [id, refreshMembers, refreshBalances]);
 
+  const groupCurrency = group?.currency || 'INR';
   const myBalance = balances.find((balance) => balance.user_id === user?.id)?.balance || 0;
 
   const settlementSuggestions = useMemo<SettlementSuggestion[]>(() => {
@@ -185,7 +188,7 @@ export default function GroupDetail() {
         {balancesLoading ? (
           <Skeleton className="h-28 w-full rounded-2xl" />
         ) : (
-          <BalanceCard balance={myBalance} />
+          <BalanceCard balance={myBalance} currency={groupCurrency} />
         )}
 
         {/* Tab switcher */}
@@ -239,7 +242,11 @@ export default function GroupDetail() {
                         onClick={() => handleSettleUp(suggestion.toUserId, suggestion.amount)}
                         disabled={processingPayment || settlingUserId === suggestion.toUserId}
                       >
-                        <IndianRupee className="w-3.5 h-3.5 mr-1" />
+                        {groupCurrency === 'INR' ? (
+                          <IndianRupee className="w-3.5 h-3.5 mr-1" />
+                        ) : (
+                          <span className="mr-1">{getCurrencySymbol(groupCurrency)}</span>
+                        )}
                         {suggestion.amount.toFixed(2)}
                       </Button>
                     </div>
@@ -315,9 +322,20 @@ export default function GroupDetail() {
                         <MemberAvatar name={balance.full_name} size="sm" />
                         <span className="font-medium">{balance.full_name}</span>
                       </div>
-                      <span className={balance.balance >= 0 ? 'text-success font-semibold' : 'text-destructive font-semibold'}>
-                        {balance.balance >= 0 ? '+' : ''}₹{Math.abs(balance.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className={balance.balance >= 0 ? 'text-success font-semibold' : 'text-destructive font-semibold'}>
+                          {balance.balance >= 0 ? '+' : ''}{getCurrencySymbol(groupCurrency)}{Math.abs(balance.balance).toLocaleString(groupCurrency === 'INR' ? 'en-IN' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        {balance.user_id !== user?.id && balance.balance < 0 && group && (
+                          <SendReminderButton
+                            debtorName={balance.full_name}
+                            amount={Math.abs(balance.balance)}
+                            groupName={group.name}
+                            debtorUserId={balance.user_id}
+                            groupId={id || ''}
+                          />
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -361,7 +379,7 @@ export default function GroupDetail() {
               ) : (
                 <div className="space-y-2">
                   {expenses.map((expense, index) => (
-                    <ExpenseCard key={expense.id} expense={expense} index={index} />
+                    <ExpenseCard key={expense.id} expense={expense} index={index} currency={groupCurrency} />
                   ))}
                 </div>
               )}
