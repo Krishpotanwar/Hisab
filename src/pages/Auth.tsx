@@ -8,6 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { CurrencyHoverGrid } from '@/components/CurrencyHoverGrid';
 
 function friendlyAuthError(msg: string): string {
   const m = msg.toLowerCase();
@@ -121,12 +122,13 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center p-4">
+    <div className="relative min-h-[100dvh] bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center p-4">
+      <CurrencyHoverGrid />
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md relative z-10"
       >
         {/* Logo */}
         <div className="text-center mb-8">
