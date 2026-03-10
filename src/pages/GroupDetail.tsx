@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Users, IndianRupee, UserPlus } from 'lucide-react';
+import { ArrowLeft, Plus, Users, IndianRupee, UserPlus, Link2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useExpenses, Balance } from '@/hooks/useExpenses';
@@ -13,6 +13,7 @@ import { ExpenseCard } from '@/components/ExpenseCard';
 import { MemberAvatar } from '@/components/MemberAvatar';
 import { AddExpenseDialog } from '@/components/AddExpenseDialog';
 import { AddMemberDialog } from '@/components/AddMemberDialog';
+import { InviteLinkDialog } from '@/components/InviteLinkDialog';
 import { GroupChat } from '@/components/GroupChat';
 import { BottomNav } from '@/components/BottomNav';
 import { useAuth } from '@/lib/auth';
@@ -21,6 +22,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { GroupDetailSkeleton } from '@/components/GroupDetailSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { exportExpensesToCSV, exportExpensesToPDF } from '@/utils/exportData';
 
 type GroupRecord = Tables<'groups'>;
 interface SettlementSuggestion {
@@ -47,6 +49,7 @@ export default function GroupDetail() {
   const [balancesLoading, setBalancesLoading] = useState(true);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showInviteLink, setShowInviteLink] = useState(false);
   const [settlingUserId, setSettlingUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'expenses' | 'chat'>('expenses');
 
@@ -251,10 +254,16 @@ export default function GroupDetail() {
                   <Users className="w-4 h-4" />
                   <h3 className="font-semibold">{membersLoading ? 'Members' : `Members (${members.length})`}</h3>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setShowAddMember(true)}>
-                  <UserPlus className="w-3 h-3 mr-1" />
-                  Add
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button variant="outline" size="sm" onClick={() => setShowInviteLink(true)}>
+                    <Link2 className="w-3 h-3 mr-1" />
+                    Invite Link
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowAddMember(true)}>
+                    <UserPlus className="w-3 h-3 mr-1" />
+                    Add
+                  </Button>
+                </div>
               </div>
 
               <div className="flex gap-2 overflow-x-auto pb-2" aria-busy={membersLoading}>
@@ -318,7 +327,29 @@ export default function GroupDetail() {
             )}
 
             <div>
-              <h3 className="font-semibold mb-3">Recent Expenses</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold">Recent Expenses</h3>
+                {expenses.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportExpensesToCSV(expenses, group.name, `${group.name}-expenses.csv`)}
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1" />
+                      CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportExpensesToPDF(expenses, group.name, `${group.name}-expenses`)}
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                )}
+              </div>
               {loading ? (
                 <div className="space-y-2">
                   {Array.from({ length: 4 }).map((_, index) => (
@@ -372,6 +403,14 @@ export default function GroupDetail() {
             setShowAddMember(false);
             if (id) await refreshMembers(id);
           }}
+        />
+      )}
+
+      {showInviteLink && group && (
+        <InviteLinkDialog
+          groupId={id || ''}
+          groupName={group.name}
+          onClose={() => setShowInviteLink(false)}
         />
       )}
 

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, TrendingUp, Users, Tag, IndianRupee } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Users, Tag, IndianRupee, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import {
@@ -8,6 +8,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { BottomNav } from '@/components/BottomNav';
+import { exportAnalyticsToCSV, exportAnalyticsToPDF } from '@/utils/exportData';
 
 const PIE_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#f97316'];
 
@@ -47,6 +48,30 @@ export default function Analytics() {
               <h1 className="font-bold text-lg">Analytics</h1>
               <p className="text-xs text-muted-foreground">Your spending overview</p>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportAnalyticsToCSV(
+                { monthlyData, balances, categoryData, totalThisMonth, totalOwedToMe, totalIOwe },
+                'hisaabkitaab-report.csv',
+              )}
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportAnalyticsToPDF(
+                { monthlyData, balances, categoryData, totalThisMonth, totalOwedToMe, totalIOwe },
+                'hisaabkitaab-report',
+              )}
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              PDF
+            </Button>
           </div>
         </div>
       </header>

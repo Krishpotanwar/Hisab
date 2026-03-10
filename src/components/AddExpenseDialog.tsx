@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Check, Calendar } from 'lucide-react';
@@ -31,6 +31,13 @@ interface AddExpenseDialogProps {
 
 const CATEGORIES = ['food', 'transport', 'entertainment', 'shopping', 'utilities', 'healthcare', 'other'];
 
+type SplitMode = 'equal' | 'custom' | 'percent';
+const SPLIT_MODES: { value: SplitMode; label: string }[] = [
+  { value: 'equal', label: 'Equal' },
+  { value: 'custom', label: 'Custom' },
+  { value: 'percent', label: 'Percent' },
+];
+
 export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddExpenseDialogProps) {
   const { user } = useAuth();
   const { getGroupMembers, getPendingMembers } = useGroups();
@@ -46,6 +53,12 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [membersLoading, setMembersLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [splitMode, setSplitMode] = useState<SplitMode>('equal');
+  // Maps userId -> custom amount string (for custom mode)
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
+  // Maps userId -> percent string (for percent mode)
+  const [percentValues, setPercentValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (open && groupId) {
@@ -63,6 +76,12 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
       });
     }
   }, [open, groupId, getGroupMembers, getPendingMembers, user]);
+
+  const handleSplitModeChange = (mode: SplitMode) => {
+    setSplitMode(mode);
+    setCustomAmounts({});
+    setPercentValues({});
+  };
 
   const toggleMember = (userId: string) => {
     setSelectedMembers(prev =>
@@ -86,33 +105,107 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
     ? Math.floor((parseFloat(amount) / totalSplitCount) * 100) / 100
     : 0;
 
+  // Validation for custom mode
+  const customTotal = useMemo(() => {
+    return selectedMembers.reduce((sum, id) => {
+      const val = parseFloat(customAmounts[id] || '0');
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+  }, [customAmounts, selectedMembers]);
+
+  const amountNum = parseFloat(amount) || 0;
+  const customRemaining = Math.round((amountNum - customTotal) * 100) / 100;
+  const isCustomValid = splitMode !== 'custom' || (Math.abs(customRemaining) < 0.01 && amountNum > 0);
+
+  // Validation for percent mode
+  const percentTotal = useMemo(() => {
+    return selectedMembers.reduce((sum, id) => {
+      const val = parseFloat(percentValues[id] || '0');
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+  }, [percentValues, selectedMembers]);
+
+  const percentRemaining = Math.round((100 - percentTotal) * 100) / 100;
+  const isPercentValid = splitMode !== 'percent' || (Math.abs(percentRemaining) < 0.01);
+
+  const isSplitValid = splitMode === 'equal' || isCustomValid || isPercentValid;
+
+  const updateCustomAmount = (userId: string, value: string) => {
+    setCustomAmounts(prev => ({ ...prev, [userId]: value }));
+  };
+
+  const updatePercent = (userId: string, value: string) => {
+    setPercentValues(prev => ({ ...prev, [userId]: value }));
+  };
+
+  const getMemberName = (userId: string): string => {
+    const member = members.find(m => m.user_id === userId);
+    return member?.full_name ?? userId;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim() || !amount || selectedMembers.length === 0) return;
 
-    const amountNum = parseFloat(amount);
+    const totalAmount = parseFloat(amount);
+    let splits: ExpenseSplit[];
 
-    // Round to 2 decimal places, assign remainder to first confirmed member
-    const baseSplit = Math.floor((amountNum / totalSplitCount) * 100) / 100;
-    const remainder = Math.round((amountNum - baseSplit * totalSplitCount) * 100) / 100;
-
-    const splits = selectedMembers.map((userId, index) => ({
-      user_id: userId,
-      amount: index === 0 ? baseSplit + remainder : baseSplit,
-    }));
+    if (splitMode === 'custom') {
+      // Validate custom amounts sum
+      if (!isCustomValid) {
+        toast.error(`Custom amounts must sum to ${totalAmount.toFixed(2)}. Remaining: ${customRemaining.toFixed(2)}`);
+        return;
+      }
+      splits = selectedMembers.map(userId => ({
+        user_id: userId,
+        amount: parseFloat(customAmounts[userId] || '0'),
+      }));
+    } else if (splitMode === 'percent') {
+      // Validate percentages sum to 100
+      if (!isPercentValid) {
+        toast.error(`Percentages must sum to 100%. Currently: ${percentTotal.toFixed(1)}%`);
+        return;
+      }
+      splits = selectedMembers.map(userId => ({
+        user_id: userId,
+        amount: Math.round((parseFloat(percentValues[userId] || '0') / 100) * totalAmount * 100) / 100,
+      }));
+      // Fix rounding: assign remainder to first member
+      const splitSum = splits.reduce((s, sp) => s + sp.amount, 0);
+      const diff = Math.round((totalAmount - splitSum) * 100) / 100;
+      if (diff !== 0 && splits.length > 0) {
+        splits[0].amount = Math.round((splits[0].amount + diff) * 100) / 100;
+      }
+    } else {
+      // Equal split
+      const baseSplit = Math.floor((totalAmount / totalSplitCount) * 100) / 100;
+      const remainder = Math.round((totalAmount - baseSplit * totalSplitCount) * 100) / 100;
+      splits = selectedMembers.map((userId, index) => ({
+        user_id: userId,
+        amount: index === 0 ? baseSplit + remainder : baseSplit,
+      }));
+    }
 
     // Build notes for pending members
     const selectedPending = pendingMembers.filter(p => selectedPendingIds.includes(p.id));
-    const pendingNotes = selectedPending.length > 0
-      ? selectedPending
+    let pendingNotes: string | undefined;
+    if (selectedPending.length > 0) {
+      if (splitMode === 'equal') {
+        const baseSplit = Math.floor((totalAmount / totalSplitCount) * 100) / 100;
+        pendingNotes = selectedPending
           .map(p => `Invited: ${p.invited_name || p.invited_email} owes ₹${baseSplit.toFixed(2)}`)
-          .join('; ')
-      : undefined;
+          .join('; ');
+      } else {
+        pendingNotes = selectedPending
+          .map(p => `Invited: ${p.invited_name || p.invited_email} (split pending)`)
+          .join('; ');
+      }
+    }
 
     setLoading(true);
     const { error } = await createExpense(
       description.trim(),
-      amountNum,
+      totalAmount,
       category,
       splits,
       date,
@@ -129,6 +222,9 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
       setAmount('');
       setCategory('other');
       setDate(new Date().toISOString().slice(0, 10));
+      setSplitMode('equal');
+      setCustomAmounts({});
+      setPercentValues({});
       onClose();
     }
   };
@@ -270,6 +366,28 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
                     </div>
                   </div>
 
+                  {/* Split mode selector */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Split mode</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {SPLIT_MODES.map(({ value, label }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => handleSplitModeChange(value)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-full text-sm transition-all",
+                            splitMode === value
+                              ? 'bg-primary text-primary-foreground ring-2 ring-primary/50'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Split between</Label>
                     <div className="space-y-2" aria-busy={membersLoading}>
@@ -284,27 +402,76 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
                             <Skeleton className="h-5 w-5 rounded-full" />
                           </div>
                         ))
-                        : members.map((member) => (
-                          <button
-                            key={member.user_id}
-                            type="button"
-                            onClick={() => toggleMember(member.user_id)}
-                            className={cn(
-                              "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
-                              selectedMembers.includes(member.user_id)
-                                ? 'bg-primary/10 ring-1 ring-primary/30'
-                                : 'bg-muted hover:bg-muted/80'
-                            )}
-                          >
-                            <MemberAvatar name={member.full_name} size="sm" />
-                            <span className="flex-1 text-left font-medium">{member.full_name}</span>
-                            {selectedMembers.includes(member.user_id) && (
-                              <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                                <Check className="w-3 h-3 text-primary-foreground" />
-                              </div>
-                            )}
-                          </button>
-                        ))}
+                        : members.map((member) => {
+                          const isSelected = selectedMembers.includes(member.user_id);
+                          return (
+                            <div key={member.user_id} className="space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleMember(member.user_id)}
+                                className={cn(
+                                  "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
+                                  isSelected
+                                    ? 'bg-primary/10 ring-1 ring-primary/30'
+                                    : 'bg-muted hover:bg-muted/80'
+                                )}
+                              >
+                                <MemberAvatar name={member.full_name} size="sm" />
+                                <span className="flex-1 text-left font-medium">{member.full_name}</span>
+
+                                {/* Inline split input for custom / percent modes */}
+                                {isSelected && splitMode === 'custom' && (
+                                  <div
+                                    className="flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <span className="text-xs text-muted-foreground">₹</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      placeholder="0.00"
+                                      value={customAmounts[member.user_id] ?? ''}
+                                      onChange={(e) => updateCustomAmount(member.user_id, e.target.value)}
+                                      className="w-20 h-7 rounded-md border border-border bg-background px-2 text-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                  </div>
+                                )}
+
+                                {isSelected && splitMode === 'percent' && (
+                                  <div
+                                    className="flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.1"
+                                      placeholder="0"
+                                      value={percentValues[member.user_id] ?? ''}
+                                      onChange={(e) => updatePercent(member.user_id, e.target.value)}
+                                      className="w-16 h-7 rounded-md border border-border bg-background px-2 text-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                    <span className="text-xs text-muted-foreground">%</span>
+                                  </div>
+                                )}
+
+                                {isSelected && splitMode === 'equal' && (
+                                  <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                    <Check className="w-3 h-3 text-primary-foreground" />
+                                  </div>
+                                )}
+                                {isSelected && splitMode !== 'equal' && (
+                                  <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center ml-1">
+                                    <Check className="w-3 h-3 text-primary-foreground" />
+                                  </div>
+                                )}
+                                {!isSelected && null}
+                              </button>
+                            </div>
+                          );
+                        })}
 
                       {/* Pending / Invited members */}
                       {!membersLoading && pendingMembers.length > 0 && (
@@ -344,9 +511,37 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
                         </>
                       )}
                     </div>
-                    {amount && totalSplitCount > 0 && (
+
+                    {/* Split summary / validation feedback */}
+                    {amount && totalSplitCount > 0 && splitMode === 'equal' && (
                       <p className="mt-2 text-sm text-muted-foreground text-center">
                         ₹{perPerson.toFixed(2)} per person
+                      </p>
+                    )}
+
+                    {amount && selectedMembers.length > 0 && splitMode === 'custom' && (
+                      <p
+                        className={cn(
+                          "mt-2 text-sm text-center font-medium",
+                          isCustomValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+                        )}
+                      >
+                        {isCustomValid
+                          ? 'Amounts add up correctly'
+                          : `Remaining: ₹${customRemaining.toFixed(2)} of ₹${amountNum.toFixed(2)}`}
+                      </p>
+                    )}
+
+                    {amount && selectedMembers.length > 0 && splitMode === 'percent' && (
+                      <p
+                        className={cn(
+                          "mt-2 text-sm text-center font-medium",
+                          isPercentValid ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+                        )}
+                      >
+                        {isPercentValid
+                          ? 'Percentages add up to 100%'
+                          : `Total: ${percentTotal.toFixed(1)}% — remaining: ${percentRemaining.toFixed(1)}%`}
                       </p>
                     )}
                   </div>
@@ -356,7 +551,7 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={loading || !description.trim() || !amount || selectedMembers.length === 0}
+                    disabled={loading || !description.trim() || !amount || selectedMembers.length === 0 || !isSplitValid}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     {loading ? 'Adding...' : 'Add Expense'}

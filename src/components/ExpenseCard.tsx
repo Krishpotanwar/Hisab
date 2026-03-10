@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Expense, getCategoryInfo } from '@/hooks/useExpenses';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { ExpenseComments } from '@/components/ExpenseComments';
 
 interface ExpenseCardProps {
   expense: Expense;
@@ -55,6 +56,9 @@ export function ExpenseCard({ expense, index = 0 }: ExpenseCardProps) {
           </p>
         </div>
       </div>
+
+      {/* Comment thread */}
+      <ExpenseComments expenseId={expense.id} />
     </motion.div>
   );
 }

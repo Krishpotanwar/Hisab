@@ -4,7 +4,7 @@ import { Wallet, Mail, Lock, User, Phone, ArrowRight, Chrome, Loader2, Eye, EyeO
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,11 +39,13 @@ export default function Auth() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const { signIn, signUp, signInWithOAuth, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectPath = searchParams.get('redirect') || '/';
   const oauthEnabled = import.meta.env.VITE_ENABLE_OAUTH === 'true';
 
   useEffect(() => {
-    if (user) navigate('/', { replace: true });
-  }, [user, navigate]);
+    if (user) navigate(redirectPath, { replace: true });
+  }, [user, navigate, redirectPath]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +70,7 @@ export default function Auth() {
         toast.error(friendlyAuthError(error.message));
         setLoading(false);
       } else {
-        navigate('/', { replace: true });
+        navigate(redirectPath, { replace: true });
         // Don't set loading — component is gone after navigation
       }
     } else {
@@ -77,7 +79,7 @@ export default function Auth() {
         toast.error(friendlyAuthError(error.message));
         setLoading(false);
       } else {
-        toast.success('Account created! Welcome to HisaabKitaab 🎉');
+        toast.success('Account created! Welcome to HisaabKitaab');
         // Check if they had pending group invites (DB trigger auto-claimed them)
         try {
           const { data: pending } = await supabase
@@ -93,7 +95,7 @@ export default function Auth() {
         } catch {
           // pending_members table may not be set up yet — ignore
         }
-        navigate('/', { replace: true });
+        navigate(redirectPath, { replace: true });
         // Don't set loading — component is gone after navigation
       }
     }

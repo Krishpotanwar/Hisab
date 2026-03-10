@@ -22,7 +22,7 @@ const getRedirectUrl = () => {
   if (url.hostname === '127.0.0.1') {
     url.hostname = 'localhost';
   }
-  return `${url.origin}/`;
+  return `${url.origin}/auth/callback`;
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {

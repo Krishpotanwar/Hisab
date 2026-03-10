@@ -11,6 +11,8 @@ import Analytics from "./pages/Analytics";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
+import AuthCallback from "./pages/AuthCallback";
+import JoinGroup from "./pages/JoinGroup";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -23,6 +25,8 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/join/:groupId" element={<JoinGroup />} />
               <Route path="/group/:id" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
               <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
