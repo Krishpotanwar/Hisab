@@ -31,12 +31,11 @@ export default function JoinGroup() {
     let cancelled = false;
 
     async function joinGroup() {
-      // Fetch group info
-      const { data: group, error: groupError } = await supabase
-        .from('groups')
-        .select('id, name, icon')
-        .eq('id', groupId!)
-        .single();
+      // Fetch group info via SECURITY DEFINER RPC — bypasses RLS so non-members
+      // can preview the group before joining (only exposes id, name, icon)
+      const { data: groupRows, error: groupError } = await supabase
+        .rpc('get_group_for_invite', { target_group_id: groupId! });
+      const group = groupRows?.[0] ?? null;
 
       if (cancelled) return;
 
