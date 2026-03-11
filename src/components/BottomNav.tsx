@@ -1,11 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, BarChart2, Bell, User } from 'lucide-react';
+import { Home, BarChart2, Bell, User, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNotifications } from '@/hooks/useNotifications';
 
 const TABS = [
   { id: 'home',          path: '/',              icon: Home,      label: 'Home'      },
   { id: 'analytics',     path: '/analytics',     icon: BarChart2, label: 'Analytics' },
+  { id: 'friends',       path: '/friends',       icon: Users,     label: 'Friends'   },
   { id: 'notifications', path: '/notifications', icon: Bell,      label: 'Alerts'    },
   { id: 'profile',       path: '/profile',       icon: User,      label: 'Profile'   },
 ];

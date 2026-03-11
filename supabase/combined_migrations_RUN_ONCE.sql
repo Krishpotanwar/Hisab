@@ -828,3 +828,40 @@ ALTER TABLE public.expenses
   FOREIGN KEY (paid_by) REFERENCES public.profiles(id) ON DELETE CASCADE;
 ALTER TABLE public.profiles
 ADD COLUMN IF NOT EXISTS phone TEXT;
+
+-- ########################################
+-- Friendships (Add Friends feature)
+-- ########################################
+CREATE TABLE IF NOT EXISTS public.friendships (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  requester_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  recipient_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'accepted', 'rejected')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(requester_id, recipient_id),
+  CONSTRAINT friendships_no_self_reference CHECK (requester_id <> recipient_id)
+);
+
+ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their friendships"
+  ON public.friendships FOR SELECT
+  USING (requester_id = auth.uid() OR recipient_id = auth.uid());
+
+CREATE POLICY "Users can send friend requests"
+  ON public.friendships FOR INSERT
+  WITH CHECK (requester_id = auth.uid());
+
+CREATE POLICY "Recipient can respond to friend requests"
+  ON public.friendships FOR UPDATE
+  USING (recipient_id = auth.uid())
+  WITH CHECK (status IN ('accepted', 'rejected'));
+
+CREATE POLICY "Users can delete their friendships"
+  ON public.friendships FOR DELETE
+  USING (requester_id = auth.uid() OR recipient_id = auth.uid());
+
+CREATE INDEX IF NOT EXISTS idx_friendships_requester ON public.friendships(requester_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_recipient ON public.friendships(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_status ON public.friendships(status);

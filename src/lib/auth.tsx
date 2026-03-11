@@ -2,16 +2,15 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-export type OAuthProvider = 'google';
-
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signInWithOAuth: (provider: OAuthProvider) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  sendPasswordResetOtp: (email: string) => Promise<{ error: Error | null }>;
+  verifyOtpAndUpdatePassword: (email: string, token: string, newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -102,14 +101,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const signInWithOAuth = async (provider: OAuthProvider) => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: getRedirectUrl(),
-      },
+  const sendPasswordResetOtp = async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
     });
     return { error };
+  };
+
+  const verifyOtpAndUpdatePassword = async (email: string, token: string, newPassword: string) => {
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'recovery',
+    });
+    if (verifyError) return { error: verifyError };
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    return { error: updateError };
   };
 
   const signOut = async () => {
@@ -117,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signInWithOAuth, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut, sendPasswordResetOtp, verifyOtpAndUpdatePassword }}>
       {children}
     </AuthContext.Provider>
   );
