@@ -47,7 +47,8 @@ export default function Auth() {
   const { signIn, signUp, sendPasswordResetOtp, verifyOtpAndUpdatePassword, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirectPath = searchParams.get('redirect') || '/';
+  const raw = searchParams.get('redirect') || '/';
+  const redirectPath = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
 
   useEffect(() => {
     if (user) navigate(redirectPath, { replace: true });

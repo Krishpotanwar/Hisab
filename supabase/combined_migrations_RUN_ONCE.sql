@@ -865,3 +865,79 @@ CREATE POLICY "Users can delete their friendships"
 CREATE INDEX IF NOT EXISTS idx_friendships_requester ON public.friendships(requester_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_recipient ON public.friendships(recipient_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_status ON public.friendships(status);
+
+-- =====================================================================
+-- 20260312000000: Allow self-join via invite link + RLS fixes
+-- =====================================================================
+CREATE POLICY "Users can join groups via invite link"
+  ON public.group_members FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Authenticated users can insert activity logs" ON public.activity_logs;
+
+CREATE POLICY "Users can insert activity logs for their groups"
+  ON public.activity_logs FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.group_members
+      WHERE group_members.group_id = activity_logs.group_id
+        AND group_members.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can view payment events for their groups"
+  ON public.payment_events FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.group_members
+      WHERE group_members.group_id = payment_events.group_id
+        AND group_members.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert payment events for their groups"
+  ON public.payment_events FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.group_members
+      WHERE group_members.group_id = payment_events.group_id
+        AND group_members.user_id = auth.uid()
+    )
+  );
+
+-- =====================================================================
+-- 20260312000001: reminder_sends throttle table
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS public.reminder_sends (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id UUID NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
+  sent_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.reminder_sends ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Group members can view reminders"
+  ON public.reminder_sends FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.group_members
+      WHERE group_members.group_id = reminder_sends.group_id
+        AND group_members.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Group members can send reminders"
+  ON public.reminder_sends FOR INSERT
+  WITH CHECK (
+    sent_by = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.group_members
+      WHERE group_members.group_id = reminder_sends.group_id
+        AND group_members.user_id = auth.uid()
+    )
+  );
+
+CREATE INDEX IF NOT EXISTS idx_reminder_sends_group ON public.reminder_sends(group_id, sent_at DESC);

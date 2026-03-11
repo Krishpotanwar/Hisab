@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Users, IndianRupee, UserPlus, Link2, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Users, IndianRupee, UserPlus, Link2, Download, Bell, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useExpenses, Balance } from '@/hooks/useExpenses';
@@ -38,7 +38,7 @@ export default function GroupDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { expenses, loading, getBalances, createExpense } = useExpenses(id || null);
-  const { getGroupMembers, getPendingMembers } = useGroups();
+  const { getGroupMembers, getPendingMembers, sendSettleReminder } = useGroups();
   const { processingPayment, startSettlementPayment } = usePayments();
 
   const [group, setGroup] = useState<GroupRecord | null>(null);
@@ -54,6 +54,7 @@ export default function GroupDetail() {
   const [showInviteLink, setShowInviteLink] = useState(false);
   const [settlingUserId, setSettlingUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'expenses' | 'chat'>('expenses');
+  const [reminderLoading, setReminderLoading] = useState(false);
 
   const refreshMembers = useCallback(async (groupId: string) => {
     setMembersLoading(true);
@@ -126,6 +127,18 @@ export default function GroupDetail() {
 
     return suggestions;
   }, [balances, myBalance, user]);
+
+  const handleSendGroupReminder = async () => {
+    if (!id) return;
+    setReminderLoading(true);
+    const { error } = await sendSettleReminder(id);
+    if (error) {
+      toast.error(error);
+    } else {
+      toast.success('Reminder sent to all group members! 🔔');
+    }
+    setReminderLoading(false);
+  };
 
   const handleSettleUp = async (toUserId: string, amount: number) => {
     if (!id || !group) return;
@@ -262,6 +275,20 @@ export default function GroupDetail() {
                   <h3 className="font-semibold">{membersLoading ? 'Members' : `Members (${members.length})`}</h3>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSendGroupReminder}
+                    disabled={reminderLoading}
+                    title="Remind all members to settle up (max once per 24h)"
+                  >
+                    {reminderLoading ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Bell className="w-3 h-3 mr-1" />
+                    )}
+                    Remind All
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setShowInviteLink(true)}>
                     <Link2 className="w-3 h-3 mr-1" />
                     Invite Link

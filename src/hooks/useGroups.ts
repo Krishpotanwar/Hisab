@@ -210,6 +210,76 @@ export function useGroups() {
     return data as PendingMember[];
   }, []);
 
+  // -----------------------------------------------------------------------
+  // sendSettleReminder: send a "please settle up" push to all group members
+  // Rate-limited to 1 reminder per group per 24 hours (by anyone)
+  // -----------------------------------------------------------------------
+  const sendSettleReminder = useCallback(async (groupId: string): Promise<{ error: string | null }> => {
+    if (!user) return { error: 'Not authenticated' };
+
+    // Check if a reminder was sent in the last 24 hours by anyone
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recent, error: checkError } = await supabase
+      .from('reminder_sends')
+      .select('id, sent_at')
+      .eq('group_id', groupId)
+      .gte('sent_at', since)
+      .limit(1);
+
+    if (checkError) {
+      // If table doesn't exist yet (migration not run), skip throttle
+      if (!checkError.message?.includes('does not exist') && checkError.code !== '42P01') {
+        return { error: 'Could not check reminder status. Try again.' };
+      }
+    }
+
+    if (recent && recent.length > 0) {
+      const nextAllowed = new Date(new Date(recent[0].sent_at).getTime() + 24 * 60 * 60 * 1000);
+      const hoursLeft = Math.ceil((nextAllowed.getTime() - Date.now()) / (1000 * 60 * 60));
+      return { error: `A reminder was sent recently. Next one available in ${hoursLeft}h.` };
+    }
+
+    // Get all other group members
+    const { data: members } = await supabase
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId)
+      .neq('user_id', user.id);
+
+    const recipientIds = (members ?? []).map((m) => m.user_id);
+
+    // Record the reminder send (best-effort — don't fail if table missing)
+    await supabase.from('reminder_sends').insert({ group_id: groupId, sent_by: user.id });
+
+    if (recipientIds.length === 0) {
+      return { error: 'No other members to remind.' };
+    }
+
+    // Dispatch in-app + email notification via edge function
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data: groupData } = await supabase.from('groups').select('name').eq('id', groupId).single();
+    const groupName = (groupData as any)?.name ?? 'your group';
+
+    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({
+        type: 'expense_added',
+        recipientUserIds: recipientIds,
+        title: '💸 Time to settle up!',
+        body: `A member of "${groupName}" is reminding everyone to clear their balances.`,
+        groupId,
+        groupName,
+      }),
+    });
+
+    return { error: null };
+  }, [user]);
+
   return {
     groups,
     loading,
@@ -217,6 +287,7 @@ export function useGroups() {
     getGroupMembers,
     addMemberByEmail,
     getPendingMembers,
+    sendSettleReminder,
     refetch: fetchGroups,
   };
 }

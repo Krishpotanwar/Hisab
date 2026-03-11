@@ -13,7 +13,7 @@ interface Props {
 export function InviteLinkDialog({ groupId, groupName, onClose }: Props) {
   const [copied, setCopied] = useState(false);
 
-  const inviteUrl = `https://hisab-rust.vercel.app/join/${groupId}`;
+  const inviteUrl = `${window.location.origin}/join/${groupId}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(inviteUrl)}&size=200x200&margin=8`;
 
   const handleCopy = async () => {

@@ -29,7 +29,7 @@ export function SendReminderButton({
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const reminderText = `Hey ${debtorName}, you owe ₹${amount.toFixed(2)} for expenses in "${groupName}" on HisaabKitaab. Settle up at https://hisab-rust.vercel.app/group/${groupId}`;
+  const reminderText = `Hey ${debtorName}, you owe ₹${amount.toFixed(2)} for expenses in "${groupName}" on HisaabKitaab. Settle up at ${window.location.origin}/group/${groupId}`;
 
   const handleWhatsApp = () => {
     const encoded = encodeURIComponent(reminderText);
@@ -40,15 +40,22 @@ export function SendReminderButton({
   const handleInApp = async () => {
     setSending(true);
     const myName = user?.user_metadata?.full_name ?? 'Someone';
-    await supabase.functions.invoke('notify', {
-      body: {
-        type: 'reminder',
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({
+        type: 'expense_added',
         recipientUserIds: [debtorUserId],
         title: `${myName} sent you a reminder`,
         body: `You owe ₹${amount.toFixed(2)} in "${groupName}"`,
         groupId,
         groupName,
-      },
+      }),
     });
     setSending(false);
     setOpen(false);

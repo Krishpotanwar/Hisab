@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const APP_URL = "https://hisab-5rhqpvyce-krishpotanwars-projects.vercel.app";
+const APP_URL = Deno.env.get("APP_URL") ?? "https://hisaabkitab.vercel.app";
 const APP_NAME = "HisaabKitaab";
 
-const supabase = createClient(
+const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  { auth: { persistSession: false } },
 );
 
 interface NotifyPayload {
@@ -26,10 +27,29 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  // ── Auth guard: require a valid user JWT ──────────────────────────────────
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !user) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   try {
     const payload: NotifyPayload = await req.json();
@@ -45,14 +65,14 @@ serve(async (req) => {
         related_expense_id: payload.expenseId ?? null,
       }));
 
-      const { error } = await supabase.from("notifications").insert(rows);
+      const { error } = await supabaseAdmin.from("notifications").insert(rows);
       if (error) console.error("notification insert error:", error);
 
       // 2. Send email to each existing user (if Resend key is configured)
       const resendKey = Deno.env.get("RESEND_API_KEY");
       if (resendKey) {
         for (const userId of payload.recipientUserIds) {
-          const { data } = await supabase.auth.admin.getUserById(userId);
+          const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
           const email = data?.user?.email;
           if (email) {
             await sendEmail(resendKey, {
@@ -78,15 +98,10 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ ok: true });
   } catch (err) {
     console.error(err);
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: String(err) }, 500);
   }
 });
 
