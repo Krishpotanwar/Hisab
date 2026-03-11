@@ -37,7 +37,7 @@ export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { expenses, loading, getBalances, createExpense } = useExpenses(id || null);
+  const { expenses, loading, getBalances, createExpense, createSettlement } = useExpenses(id || null);
   const { getGroupMembers, getPendingMembers, sendSettleReminder } = useGroups();
   const { processingPayment, startSettlementPayment } = usePayments();
 
@@ -160,6 +160,19 @@ export default function GroupDetail() {
     setSettlingUserId(null);
   };
 
+  const handleManualSettle = async (toUserId: string, amount: number) => {
+    if (!id) return;
+    setSettlingUserId(toUserId);
+    const { error } = await createSettlement(toUserId, amount, 'Marked as settled manually');
+    if (error) {
+      toast.error('Failed to record settlement');
+    } else {
+      toast.success('Settlement recorded!');
+      await refreshBalances();
+    }
+    setSettlingUserId(null);
+  };
+
   if (groupLoading) {
     return <GroupDetailSkeleton />;
   }
@@ -237,30 +250,50 @@ export default function GroupDetail() {
             {settlementSuggestions.length > 0 && (
               <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-semibold">Settle up instantly</h3>
+                  <h3 className="font-semibold">Settle up</h3>
                   <span className="text-xs text-muted-foreground">UPI / cards via Razorpay</span>
                 </div>
                 <div className="space-y-2">
                   {settlementSuggestions.map((suggestion) => (
                     <div
                       key={suggestion.toUserId}
-                      className="flex items-center justify-between rounded-xl border border-border/60 p-3"
+                      className="rounded-xl border border-border/60 p-3 space-y-2"
                     >
-                      <div className="text-sm">
-                        <p className="font-medium">Pay {suggestion.fullName}</p>
-                        <p className="text-muted-foreground">Suggested settlement</p>
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm">
+                          <p className="font-medium">Pay {suggestion.fullName}</p>
+                          <p className="text-muted-foreground">
+                            {groupCurrency === 'INR' ? '₹' : getCurrencySymbol(groupCurrency)}
+                            {suggestion.amount.toFixed(2)}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSettleUp(suggestion.toUserId, suggestion.amount)}
+                          disabled={processingPayment || settlingUserId === suggestion.toUserId}
+                        >
+                          {settlingUserId === suggestion.toUserId ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              {groupCurrency === 'INR' ? (
+                                <IndianRupee className="w-3.5 h-3.5 mr-1" />
+                              ) : (
+                                <span className="mr-1">{getCurrencySymbol(groupCurrency)}</span>
+                              )}
+                              Pay now
+                            </>
+                          )}
+                        </Button>
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => handleSettleUp(suggestion.toUserId, suggestion.amount)}
+                        variant="outline"
+                        className="w-full text-xs"
+                        onClick={() => handleManualSettle(suggestion.toUserId, suggestion.amount)}
                         disabled={processingPayment || settlingUserId === suggestion.toUserId}
                       >
-                        {groupCurrency === 'INR' ? (
-                          <IndianRupee className="w-3.5 h-3.5 mr-1" />
-                        ) : (
-                          <span className="mr-1">{getCurrencySymbol(groupCurrency)}</span>
-                        )}
-                        {suggestion.amount.toFixed(2)}
+                        Mark as settled (paid outside app)
                       </Button>
                     </div>
                   ))}
