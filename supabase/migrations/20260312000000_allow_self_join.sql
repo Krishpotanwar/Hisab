@@ -23,27 +23,5 @@ CREATE POLICY "Users can insert activity logs for their groups"
     )
   );
 
--- =====================================================================
--- Add missing RLS policies to payment_events
--- (RLS was enabled but no policies existed — all rows were invisible)
--- =====================================================================
-CREATE POLICY "Users can view payment events for their groups"
-  ON public.payment_events FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.group_members
-      WHERE group_members.group_id = payment_events.group_id
-        AND group_members.user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Users can insert payment events for their groups"
-  ON public.payment_events FOR INSERT
-  WITH CHECK (
-    user_id = auth.uid()
-    AND EXISTS (
-      SELECT 1 FROM public.group_members
-      WHERE group_members.group_id = payment_events.group_id
-        AND group_members.user_id = auth.uid()
-    )
-  );
+-- NOTE: payment_events is a raw Razorpay webhook log (no group_id/user_id columns).
+-- It is intentionally service-role-only. No user-facing RLS policies needed.
