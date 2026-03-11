@@ -80,7 +80,13 @@ export function usePayments() {
 
     if (error || !data) {
       setProcessingPayment(false);
-      return { error: error ?? new Error('Failed to create payment order') };
+      // Try to extract the actual error message from the function response body
+      let message = 'Failed to create payment order';
+      try {
+        const body = await (error as any)?.context?.json?.();
+        if (body?.error) message = body.error;
+      } catch { /* ignore */ }
+      return { error: new Error(message) };
     }
 
     return new Promise<{ error: Error | null }>((resolve) => {
