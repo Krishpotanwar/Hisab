@@ -42,6 +42,8 @@ export interface Balance {
   user_id: string;
   full_name: string;
   balance: number;
+  upi_id?: string | null;
+  phone?: string | null;
 }
 
 export interface PendingSettlement {
@@ -231,7 +233,7 @@ export function useExpenses(groupId: string | null) {
       .select(
         `
         user_id,
-        profiles!inner(full_name)
+        profiles!inner(full_name, upi_id, phone)
       `,
       )
       .eq('group_id', groupId);
@@ -319,6 +321,8 @@ export function useExpenses(groupId: string | null) {
       user_id: member.user_id,
       full_name: member.profiles?.full_name ?? 'Unknown',
       balance: balances[member.user_id] || 0,
+      upi_id: (member.profiles as any)?.upi_id ?? null,
+      phone: (member.profiles as any)?.phone ?? null,
     }));
   }, [groupId]);
 

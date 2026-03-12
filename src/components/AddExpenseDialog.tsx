@@ -256,7 +256,7 @@ export function AddExpenseDialog({ open, onClose, groupId, createExpense }: AddE
     setLoading(false);
 
     if (error) {
-      toast.error('Failed to add expense');
+      toast.error(`Failed to add expense: ${error.message}`);
     } else {
       toast.success('Expense added!');
       setDescription('');

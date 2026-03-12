@@ -31,6 +31,8 @@ interface SettlementSuggestion {
   toUserId: string;
   fullName: string;
   amount: number;
+  upiId?: string | null;
+  phone?: string | null;
 }
 
 export default function GroupDetail() {
@@ -131,6 +133,8 @@ export default function GroupDetail() {
         toUserId: creditor.user_id,
         fullName: creditor.full_name,
         amount,
+        upiId: creditor.upi_id,
+        phone: creditor.phone,
       });
       remaining = Number((remaining - amount).toFixed(2));
     }
@@ -317,10 +321,15 @@ export default function GroupDetail() {
               <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-semibold">Settle up</h3>
-                  <span className="text-xs text-muted-foreground">UPI / cards via Razorpay</span>
+                  <span className="text-xs text-muted-foreground">Pay directly via UPI</span>
                 </div>
                 <div className="space-y-2">
-                  {settlementSuggestions.map((suggestion) => (
+                  {settlementSuggestions.map((suggestion) => {
+                    const upiHandle = suggestion.upiId || (suggestion.phone ? `${suggestion.phone.replace(/\s/g, '')}@paytm` : null);
+                    const upiLink = upiHandle
+                      ? `upi://pay?pa=${encodeURIComponent(upiHandle)}&pn=${encodeURIComponent(suggestion.fullName)}&am=${suggestion.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent('HisaabKitab settlement')}`
+                      : null;
+                    return (
                     <div
                       key={suggestion.toUserId}
                       className="rounded-xl border border-border/60 p-3 space-y-2"
@@ -329,40 +338,45 @@ export default function GroupDetail() {
                         <div className="text-sm">
                           <p className="font-medium">Pay {suggestion.fullName}</p>
                           <p className="text-muted-foreground">
-                            {groupCurrency === 'INR' ? '₹' : getCurrencySymbol(groupCurrency)}
+                            {getCurrencySymbol(groupCurrency)}
                             {suggestion.amount.toFixed(2)}
                           </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSettleUp(suggestion.toUserId, suggestion.amount)}
-                          disabled={processingPayment || settlingUserId === suggestion.toUserId}
-                        >
-                          {settlingUserId === suggestion.toUserId ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <>
-                              {groupCurrency === 'INR' ? (
-                                <IndianRupee className="w-3.5 h-3.5 mr-1" />
-                              ) : (
-                                <span className="mr-1">{getCurrencySymbol(groupCurrency)}</span>
-                              )}
-                              Pay now
-                            </>
+                          {suggestion.upiId && (
+                            <p className="text-xs text-muted-foreground mt-0.5">UPI: {suggestion.upiId}</p>
                           )}
-                        </Button>
+                        </div>
+                        {upiLink ? (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => {
+                              window.location.href = upiLink;
+                            }}
+                          >
+                            <IndianRupee className="w-3.5 h-3.5 mr-1" />
+                            Pay via UPI
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-amber-500 text-right max-w-[120px]">
+                            Ask {suggestion.fullName} to add UPI ID in profile
+                          </span>
+                        )}
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
                         className="w-full text-xs"
                         onClick={() => handleRequestManualSettle(suggestion.toUserId, suggestion.amount)}
-                        disabled={processingPayment || settlingUserId === suggestion.toUserId}
+                        disabled={settlingUserId === suggestion.toUserId}
                       >
+                        {settlingUserId === suggestion.toUserId ? (
+                          <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                        ) : null}
                         Mark as settled (paid outside app)
                       </Button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -62,6 +62,15 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(user?.user_metadata?.full_name ?? '');
   const [phone, setPhone] = useState(user?.user_metadata?.phone ?? '');
+  const [upiId, setUpiId] = useState('');
+
+  // Load upi_id from profiles table on mount
+  useEffect(() => {
+    if (user?.id) {
+      supabase.from('profiles').select('upi_id').eq('id', user.id).single()
+        .then(({ data }) => { if (data?.upi_id) setUpiId(data.upi_id); });
+    }
+  }, [user?.id]);
 
   const initials = (user?.user_metadata?.full_name ?? user?.email ?? '?')
     .split(' ')
@@ -75,7 +84,7 @@ export default function Profile() {
     setSaving(true);
     const { error } = await supabase.auth.updateUser({ data: { full_name: name.trim(), phone: phone.trim() } });
     if (!error) {
-      await supabase.from('profiles').update({ full_name: name.trim() }).eq('id', user!.id);
+      await supabase.from('profiles').update({ full_name: name.trim(), upi_id: upiId.trim() || null }).eq('id', user!.id);
       toast.success('Profile updated');
       setEditing(false);
     } else {
@@ -119,6 +128,12 @@ export default function Profile() {
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Phone number"
                   type="tel"
+                  className="h-9 text-sm"
+                />
+                <Input
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  placeholder="UPI ID (e.g. name@upi)"
                   className="h-9 text-sm"
                 />
                 <div className="flex gap-2 pt-1">
@@ -174,6 +189,13 @@ export default function Profile() {
             icon={<Phone className="w-4 h-4 text-green-500" />}
             label="Phone"
             value={user?.user_metadata?.phone || 'Not set'}
+            onClick={() => setEditing(true)}
+          />
+          <div className="h-px bg-border/40 mx-4" />
+          <SettingRow
+            icon={<span className="text-sm font-bold text-blue-500">₹</span>}
+            label="UPI ID"
+            value={upiId || 'Not set — add to receive payments'}
             onClick={() => setEditing(true)}
           />
         </motion.div>

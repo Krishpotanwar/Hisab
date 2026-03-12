@@ -84,6 +84,14 @@ export default function Auth() {
         toast.error('Please enter your full name');
         return;
       }
+      if (!phone.trim()) {
+        toast.error('Please enter your phone number');
+        return;
+      }
+      if (!/^\+?[\d\s\-]{10,15}$/.test(phone.trim())) {
+        toast.error('Please enter a valid phone number (10–15 digits)');
+        return;
+      }
     }
 
     setLoading(true);
@@ -368,7 +376,8 @@ export default function Auth() {
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="tel"
-                            placeholder="Phone number (optional)"
+                            placeholder="Phone number"
+                            required
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                             className="pl-10"
