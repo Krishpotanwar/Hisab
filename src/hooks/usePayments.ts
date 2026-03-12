@@ -80,11 +80,26 @@ export function usePayments() {
 
     if (error || !data) {
       setProcessingPayment(false);
-      // Try to extract the actual error message from the function response body
+      console.error('[create-payment-order] raw error:', error, 'data:', data);
+      // Extract the real error message — try multiple approaches since
+      // the Response body may already be partially consumed by the SDK
       let message = 'Failed to create payment order';
       try {
-        const body = await (error as any)?.context?.json?.();
-        if (body?.error) message = body.error;
+        // Approach 1: clone the response before reading
+        const resp = (error as any)?.context as Response | undefined;
+        if (resp) {
+          const body = await resp.clone().json().catch(() => null);
+          if (body?.error) {
+            message = body.error;
+          } else {
+            // Approach 2: raw text
+            const text = await resp.clone().text().catch(() => '');
+            if (text) message = text;
+          }
+        } else if ((error as any)?.message && (error as any).message !== 'Edge Function returned a non-2xx status code') {
+          // Approach 3: error.message already has something useful
+          message = (error as any).message;
+        }
       } catch { /* ignore */ }
       return { error: new Error(message) };
     }
