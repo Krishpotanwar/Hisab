@@ -13,6 +13,11 @@ CREATE TABLE IF NOT EXISTS public.pending_settlements (
 
 ALTER TABLE public.pending_settlements ENABLE ROW LEVEL SECURITY;
 
+-- Drop policies first so re-running this is safe
+DROP POLICY IF EXISTS "Participants can view pending settlements" ON public.pending_settlements;
+DROP POLICY IF EXISTS "Payer can create pending settlement" ON public.pending_settlements;
+DROP POLICY IF EXISTS "Either party can delete pending settlement" ON public.pending_settlements;
+
 CREATE POLICY "Participants can view pending settlements"
   ON public.pending_settlements FOR SELECT
   USING (from_user = auth.uid() OR to_user = auth.uid());
