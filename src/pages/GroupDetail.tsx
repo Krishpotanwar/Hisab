@@ -37,7 +37,17 @@ export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { expenses, loading, getBalances, createExpense, createSettlement } = useExpenses(id || null);
+  const {
+    expenses,
+    loading,
+    getBalances,
+    createExpense,
+    createSettlement,
+    pendingSettlements,
+    requestManualSettle,
+    confirmPendingSettle,
+    rejectPendingSettle,
+  } = useExpenses(id || null);
   const { getGroupMembers, getPendingMembers, sendSettleReminder } = useGroups();
   const { processingPayment, startSettlementPayment } = usePayments();
 
@@ -160,15 +170,14 @@ export default function GroupDetail() {
     setSettlingUserId(null);
   };
 
-  const handleManualSettle = async (toUserId: string, amount: number) => {
+  const handleRequestManualSettle = async (toUserId: string, amount: number) => {
     if (!id) return;
     setSettlingUserId(toUserId);
-    const { error } = await createSettlement(toUserId, amount, 'Marked as settled manually');
+    const { error } = await requestManualSettle(toUserId, amount, 'Marked as settled manually');
     if (error) {
-      toast.error('Failed to record settlement');
+      toast.error('Failed to send settlement request');
     } else {
-      toast.success('Settlement recorded!');
-      await refreshBalances();
+      toast.success('Settlement request sent! Waiting for confirmation from the other person.');
     }
     setSettlingUserId(null);
   };
@@ -247,6 +256,63 @@ export default function GroupDetail() {
           </div>
         ) : (
           <>
+            {/* Pending confirmations — shown to the payee (creditor) */}
+            {pendingSettlements.filter((ps) => ps.to_user === user?.id).length > 0 && (
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-50/5 p-4 space-y-3">
+                <h3 className="font-semibold text-amber-600 dark:text-amber-400">
+                  💰 Confirm Payments Received
+                </h3>
+                <div className="space-y-2">
+                  {pendingSettlements
+                    .filter((ps) => ps.to_user === user?.id)
+                    .map((ps) => (
+                      <div key={ps.id} className="rounded-xl border border-border/60 bg-card p-3 space-y-2">
+                        <p className="text-sm">
+                          <span className="font-medium">{ps.from_user_name}</span>
+                          {' '}says they paid you{' '}
+                          <span className="font-semibold">
+                            {getCurrencySymbol(groupCurrency)}{Number(ps.amount).toFixed(2)}
+                          </span>
+                          {' '}outside the app.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                            onClick={async () => {
+                              const { error } = await confirmPendingSettle(ps.id);
+                              if (error) {
+                                toast.error('Failed to confirm payment');
+                              } else {
+                                toast.success('Payment confirmed! Settlement recorded.');
+                                await refreshBalances();
+                              }
+                            }}
+                          >
+                            ✓ Yes, I received it
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-destructive text-destructive hover:bg-destructive/10"
+                            onClick={async () => {
+                              const { error } = await rejectPendingSettle(ps.id);
+                              if (error) {
+                                toast.error('Failed to decline');
+                              } else {
+                                toast.info('Settlement request declined.');
+                              }
+                            }}
+                          >
+                            ✗ No, I didn't
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
             {settlementSuggestions.length > 0 && (
               <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
@@ -290,7 +356,7 @@ export default function GroupDetail() {
                         size="sm"
                         variant="outline"
                         className="w-full text-xs"
-                        onClick={() => handleManualSettle(suggestion.toUserId, suggestion.amount)}
+                        onClick={() => handleRequestManualSettle(suggestion.toUserId, suggestion.amount)}
                         disabled={processingPayment || settlingUserId === suggestion.toUserId}
                       >
                         Mark as settled (paid outside app)

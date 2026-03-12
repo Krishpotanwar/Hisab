@@ -44,6 +44,17 @@ export interface Balance {
   balance: number;
 }
 
+export interface PendingSettlement {
+  id: string;
+  group_id: string;
+  from_user: string;
+  from_user_name?: string;
+  to_user: string;
+  amount: number;
+  notes: string | null;
+  created_at: string;
+}
+
 const CATEGORIES = {
   food: { icon: '🍔', label: 'Food & Drinks', color: 'food' },
   transport: { icon: '🚗', label: 'Transport', color: 'transport' },
@@ -62,6 +73,7 @@ export function useExpenses(groupId: string | null) {
   const { user } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingSettlements, setPendingSettlements] = useState<PendingSettlement[]>([]);
 
   const fetchExpenses = useCallback(async () => {
     if (!groupId) return;
@@ -89,11 +101,32 @@ export function useExpenses(groupId: string | null) {
     setLoading(false);
   }, [groupId]);
 
+  const fetchPendingSettlements = useCallback(async () => {
+    if (!groupId) return;
+    const { data } = await supabase
+      .from('pending_settlements')
+      .select('*, profiles!pending_settlements_from_user_fkey(full_name)')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false });
+    if (data) {
+      setPendingSettlements(
+        data.map((r: any) => ({
+          ...r,
+          from_user_name: r.profiles?.full_name ?? 'Someone',
+        })),
+      );
+    }
+  }, [groupId]);
+
   useEffect(() => {
     fetchExpenses();
   }, [fetchExpenses]);
 
-  // Fix #21: Realtime subscription for expenses
+  useEffect(() => {
+    fetchPendingSettlements();
+  }, [fetchPendingSettlements]);
+
+  // Realtime subscription for expenses
   useEffect(() => {
     if (!groupId) return;
     const channel = supabase
@@ -102,6 +135,16 @@ export function useExpenses(groupId: string | null) {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [groupId, fetchExpenses]);
+
+  // Realtime subscription for pending settlements
+  useEffect(() => {
+    if (!groupId) return;
+    const channel = supabase
+      .channel(`pending_settlements:${groupId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pending_settlements', filter: `group_id=eq.${groupId}` }, () => fetchPendingSettlements())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [groupId, fetchPendingSettlements]);
 
   const createExpense = async (
     description: string,
@@ -289,7 +332,6 @@ export function useExpenses(groupId: string | null) {
     });
 
     if (!error) {
-      // Notify both parties
       supabase
         .from('groups')
         .select('name')
@@ -313,12 +355,71 @@ export function useExpenses(groupId: string | null) {
     return { error };
   };
 
+  // Creates a pending settlement (debtor → creditor, awaiting confirmation)
+  const requestManualSettle = async (toUser: string, amount: number, notes?: string) => {
+    if (!user || !groupId) return { error: new Error('Not authenticated') };
+
+    const { error } = await supabase.from('pending_settlements').insert({
+      group_id: groupId,
+      from_user: user.id,
+      to_user: toUser,
+      amount,
+      notes: notes || null,
+    });
+
+    if (!error) {
+      // Notify the payee
+      supabase
+        .from('groups')
+        .select('name')
+        .eq('id', groupId)
+        .single()
+        .then(({ data: grp }) => {
+          supabase.functions.invoke('notify', {
+            body: {
+              type: 'settlement_pending',
+              recipientUserIds: [toUser],
+              title: `${user.user_metadata?.full_name ?? 'Someone'} says they paid you!`,
+              body: `Did you receive ₹${amount} in "${(grp as any)?.name ?? 'your group'}"? Open the app to confirm.`,
+              groupId,
+              groupName: (grp as any)?.name,
+            },
+          });
+        });
+      await fetchPendingSettlements();
+    }
+
+    return { error };
+  };
+
+  // Called by the creditor (to_user) to confirm receipt → inserts real settlement via SECURITY DEFINER fn
+  const confirmPendingSettle = async (pendingId: string) => {
+    const { error } = await supabase.rpc('confirm_pending_settlement', { pending_id: pendingId });
+    if (!error) await fetchPendingSettlements();
+    return { error };
+  };
+
+  // Called by either party to reject/cancel the pending settlement
+  const rejectPendingSettle = async (pendingId: string) => {
+    const { error } = await supabase
+      .from('pending_settlements')
+      .delete()
+      .eq('id', pendingId);
+    if (!error) await fetchPendingSettlements();
+    return { error };
+  };
+
   return {
     expenses,
     loading,
     createExpense,
     getBalances,
     createSettlement,
+    pendingSettlements,
+    requestManualSettle,
+    confirmPendingSettle,
+    rejectPendingSettle,
+    fetchPendingSettlements,
     refetch: fetchExpenses,
     categories: CATEGORIES,
   };
