@@ -33,9 +33,7 @@ const getUserIdFromToken = async (req: Request) => {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
   const token = authHeader.slice("Bearer ".length).trim();
-  const {
-    data: { user },
-  } = await supabaseAdmin.auth.getUser(token);
+  const { data: { user } } = await supabaseAdmin.auth.getUser(token);
   return user?.id ?? null;
 };
 

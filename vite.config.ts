@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   optimizeDeps: {
-    exclude: ['tesseract.js'],
+    include: ['tesseract.js'],
   },
   resolve: {
     alias: {

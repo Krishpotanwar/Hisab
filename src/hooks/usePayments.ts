@@ -69,6 +69,8 @@ export function usePayments() {
       return { error: new Error('Unable to load payment gateway') };
     }
 
+    // Explicitly pass the session token — supabase.functions.invoke may not attach it automatically
+    const { data: { session } } = await supabase.auth.getSession();
     const { data, error } = await supabase.functions.invoke<CreateOrderResponse>('create-payment-order', {
       body: {
         group_id: groupId,
@@ -76,6 +78,9 @@ export function usePayments() {
         amount,
         notes: notes ?? null,
       },
+      headers: session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : undefined,
     });
 
     if (error || !data) {

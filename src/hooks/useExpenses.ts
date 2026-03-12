@@ -305,11 +305,13 @@ export function useExpenses(groupId: string | null) {
     });
 
     settlements.forEach((settlement) => {
+      // from_user is the debtor (payer) — settlement reduces their debt (balance goes UP)
       if (balances[settlement.from_user] !== undefined) {
-        balances[settlement.from_user] -= Number(settlement.amount);
+        balances[settlement.from_user] += Number(settlement.amount);
       }
+      // to_user is the creditor (receiver) — settlement reduces what they're owed (balance goes DOWN)
       if (balances[settlement.to_user] !== undefined) {
-        balances[settlement.to_user] += Number(settlement.amount);
+        balances[settlement.to_user] -= Number(settlement.amount);
       }
     });
 
